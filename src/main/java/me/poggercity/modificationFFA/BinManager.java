@@ -2,6 +2,7 @@ package me.poggercity.modificationFFA;
 
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
+import net.kyori.adventure.text.format.TextColor;
 import net.kyori.adventure.text.format.TextDecoration;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
@@ -31,17 +32,10 @@ final class BinManager implements Listener, AutoCloseable {
     private static final int STORAGE_SIZE = 27;
     private static final int DELETE_SLOT = 31;
     private static final long ANIMATION_PERIOD_TICKS = 2L;
+    private static final int ANIMATION_FRAME_COUNT = 40;
     private static final String DELETE_LABEL = "Delete Items";
-    private static final List<NamedTextColor> ANIMATION_COLORS = List.of(
-            NamedTextColor.DARK_PURPLE,
-            NamedTextColor.LIGHT_PURPLE,
-            NamedTextColor.RED,
-            NamedTextColor.GOLD,
-            NamedTextColor.YELLOW,
-            NamedTextColor.GOLD,
-            NamedTextColor.RED,
-            NamedTextColor.LIGHT_PURPLE
-    );
+    private static final int GRADIENT_PURPLE = 0xA000B8;
+    private static final int GRADIENT_YELLOW = 0xFFD21A;
 
     private final ModificationFFA plugin;
     private final Map<UUID, BinHolder> openBins = new HashMap<>();
@@ -191,11 +185,14 @@ final class BinManager implements Listener, AutoCloseable {
     }
 
     private List<ItemStack> createDeleteFrames() {
-        List<ItemStack> frames = new ArrayList<>(ANIMATION_COLORS.size());
-        for (int phase = 0; phase < ANIMATION_COLORS.size(); phase++) {
+        List<ItemStack> frames = new ArrayList<>(ANIMATION_FRAME_COUNT);
+        for (int phase = 0; phase < ANIMATION_FRAME_COUNT; phase++) {
             Component name = Component.empty();
             for (int character = 0; character < DELETE_LABEL.length(); character++) {
-                NamedTextColor color = ANIMATION_COLORS.get((phase + character) % ANIMATION_COLORS.size());
+                double position = (character / (double) (DELETE_LABEL.length() - 1)
+                        + phase / (double) ANIMATION_FRAME_COUNT) % 1.0;
+                double progress = (1.0 - Math.cos(position * Math.PI * 2.0)) / 2.0;
+                TextColor color = gradientColor(progress);
                 name = name.append(Component.text(DELETE_LABEL.charAt(character), color));
             }
 
@@ -206,6 +203,17 @@ final class BinManager implements Listener, AutoCloseable {
             frames.add(button);
         }
         return List.copyOf(frames);
+    }
+
+    private TextColor gradientColor(double progress) {
+        int red = interpolateChannel(GRADIENT_PURPLE >> 16, GRADIENT_YELLOW >> 16, progress);
+        int green = interpolateChannel(GRADIENT_PURPLE >> 8, GRADIENT_YELLOW >> 8, progress);
+        int blue = interpolateChannel(GRADIENT_PURPLE, GRADIENT_YELLOW, progress);
+        return TextColor.color(red, green, blue);
+    }
+
+    private int interpolateChannel(int from, int to, double blend) {
+        return (int) Math.round((from & 0xFF) + (((to & 0xFF) - (from & 0xFF)) * blend));
     }
 
     private ItemStack createFiller() {
