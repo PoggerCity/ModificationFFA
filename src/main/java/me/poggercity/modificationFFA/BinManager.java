@@ -31,14 +31,22 @@ final class BinManager implements Listener, AutoCloseable {
     private static final int INVENTORY_SIZE = 36;
     private static final int STORAGE_SIZE = 27;
     private static final int DELETE_SLOT = 31;
-    private static final long ANIMATION_PERIOD_TICKS = 2L;
-    private static final int SOLID_COLOR_FRAMES = 6;
-    private static final int TRANSITION_FRAMES = 18;
+    private static final long ANIMATION_PERIOD_TICKS = 1L;
+    private static final int SOLID_COLOR_FRAMES = 3;
+    private static final int TRANSITION_FRAMES = 17;
     private static final int ANIMATION_FRAME_COUNT = (SOLID_COLOR_FRAMES + TRANSITION_FRAMES) * 2;
-    private static final double GRADIENT_EDGE_WIDTH = 0.28;
+    private static final double GRADIENT_EDGE_WIDTH = 0.42;
     private static final String DELETE_LABEL = "Delete Items";
     private static final int GRADIENT_PURPLE = 0xA000B8;
+    private static final int GRADIENT_PINK = 0xE100A8;
+    private static final int GRADIENT_GOLD = 0xFF9200;
     private static final int GRADIENT_YELLOW = 0xFFD21A;
+    private static final int[] GRADIENT_STOPS = {
+            GRADIENT_PURPLE,
+            GRADIENT_PINK,
+            GRADIENT_GOLD,
+            GRADIENT_YELLOW
+    };
 
     private final ModificationFFA plugin;
     private final Map<UUID, BinHolder> openBins = new HashMap<>();
@@ -147,8 +155,12 @@ final class BinManager implements Listener, AutoCloseable {
     }
 
     private void animateOpenBins() {
+        int previousFrame = currentFrame;
         currentFrame = (currentFrame + 1) % deleteFrames.size();
         ItemStack frame = deleteFrames.get(currentFrame);
+        if (frame.isSimilar(deleteFrames.get(previousFrame))) {
+            return;
+        }
 
         openBins.entrySet().removeIf(entry -> {
             Player player = Bukkit.getPlayer(entry.getKey());
@@ -225,19 +237,26 @@ final class BinManager implements Listener, AutoCloseable {
     }
 
     private double movingGradient(double time, int character) {
-        double easedTime = time * time * (3.0 - (2.0 * time));
+        double easedTime = time * time * time * ((time * ((time * 6.0) - 15.0)) + 10.0);
         double center = -GRADIENT_EDGE_WIDTH + ((1.0 + (GRADIENT_EDGE_WIDTH * 2.0)) * easedTime);
         double position = character / (double) (DELETE_LABEL.length() - 1);
         double blend = (position - (center - GRADIENT_EDGE_WIDTH)) / (GRADIENT_EDGE_WIDTH * 2.0);
         blend = Math.max(0.0, Math.min(1.0, blend));
-        double smoothBlend = blend * blend * (3.0 - (2.0 * blend));
+        double smoothBlend = (1.0 - Math.cos(blend * Math.PI)) / 2.0;
         return 1.0 - smoothBlend;
     }
 
     private TextColor gradientColor(double progress) {
-        int red = interpolateChannel(GRADIENT_PURPLE >> 16, GRADIENT_YELLOW >> 16, progress);
-        int green = interpolateChannel(GRADIENT_PURPLE >> 8, GRADIENT_YELLOW >> 8, progress);
-        int blue = interpolateChannel(GRADIENT_PURPLE, GRADIENT_YELLOW, progress);
+        double scaled = Math.max(0.0, Math.min(1.0, progress)) * (GRADIENT_STOPS.length - 1);
+        int lowerIndex = Math.min((int) scaled, GRADIENT_STOPS.length - 2);
+        double blend = scaled - lowerIndex;
+        blend = (1.0 - Math.cos(blend * Math.PI)) / 2.0;
+
+        int lower = GRADIENT_STOPS[lowerIndex];
+        int upper = GRADIENT_STOPS[lowerIndex + 1];
+        int red = interpolateChannel(lower >> 16, upper >> 16, blend);
+        int green = interpolateChannel(lower >> 8, upper >> 8, blend);
+        int blue = interpolateChannel(lower, upper, blend);
         return TextColor.color(red, green, blue);
     }
 
