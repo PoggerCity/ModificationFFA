@@ -5,6 +5,7 @@ version: '${version}'
 main: me.poggercity.modificationFFA.ModificationFFA
 api-version: '1.21.11'
 load: POSTWORLD
+loadbefore: [PlayerKits2]
 
 authors: [PoggerCity]
 
@@ -19,6 +20,9 @@ commands:
   store:
     description: Shows the server store link.
     usage: /store
+  kit:
+    description: Loads and manages your ModificationFFA kit layout.
+    usage: /kit help
 
 permissions:
   modificationffa.reload:
@@ -26,4 +30,7 @@ permissions:
     default: op
   modificationffa.cooldown.bypass:
     description: Bypasses the shared /discord and /store cooldown.
+    default: op
+  modificationffa.kit.admin:
+    description: Allows saving the authoritative main kit.
     default: op

@@ -30,6 +30,7 @@ public final class ModificationFFA extends JavaPlugin implements Listener {
 
     private final Map<UUID, Long> linkCommandUses = new HashMap<>();
 
+    private KitManager kitManager;
     private LinkMessages linkMessages;
     private BukkitTask reminderTask;
     private Sound reminderSound;
@@ -49,6 +50,8 @@ public final class ModificationFFA extends JavaPlugin implements Listener {
             return;
         }
 
+        kitManager = new KitManager(this);
+        kitManager.start();
         getServer().getPluginManager().registerEvents(this, this);
         getLogger().info("ModificationFFA has been enabled.");
     }
@@ -56,6 +59,9 @@ public final class ModificationFFA extends JavaPlugin implements Listener {
     @Override
     public void onDisable() {
         cancelReminderTask();
+        if (kitManager != null) {
+            kitManager.close();
+        }
         linkCommandUses.clear();
         getLogger().info("ModificationFFA has been disabled.");
     }
@@ -70,9 +76,30 @@ public final class ModificationFFA extends JavaPlugin implements Listener {
         return switch (command.getName().toLowerCase(Locale.ROOT)) {
             case "discord" -> sendLinkCommand(sender, linkMessages.discord());
             case "store" -> sendLinkCommand(sender, linkMessages.store());
+            case "kit" -> kitManager.handleCommand(sender, args);
             case "modification" -> handleModificationCommand(sender, args);
             default -> false;
         };
+    }
+
+    @Override
+    public List<String> onTabComplete(
+            @NotNull CommandSender sender,
+            @NotNull Command command,
+            @NotNull String alias,
+            @NotNull String[] args
+    ) {
+        if (command.getName().equalsIgnoreCase("kit")) {
+            return kitManager.tabComplete(sender, args);
+        }
+        if (command.getName().equalsIgnoreCase("modification") && args.length == 1) {
+            List<String> available = sender.hasPermission("modificationffa.reload")
+                    ? List.of("help", "reload")
+                    : List.of("help");
+            String current = args[0].toLowerCase(Locale.ROOT);
+            return available.stream().filter(subcommand -> subcommand.startsWith(current)).toList();
+        }
+        return List.of();
     }
 
     @EventHandler
