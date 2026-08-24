@@ -108,3 +108,6 @@ permissions:
   modificationffa.command.combat.untag:
     description: Allows removing a player's combat tag.
     default: op
+  modificationffa.command.combat.commandwhitelist:
+    description: Allows configuring commands available during combat.
+    default: op

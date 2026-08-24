@@ -203,18 +203,26 @@ final class TokenManager implements Listener, AutoCloseable {
     public void onPlayerDeath(PlayerDeathEvent event) {
         Player victim = event.getPlayer();
         Player killer = victim.getKiller();
-        if (killer == null || killer.getUniqueId().equals(victim.getUniqueId())) {
+        if (killer == null) {
             return;
         }
 
+        awardKillToken(killer, victim.getUniqueId());
+    }
+
+    boolean awardKillToken(Player killer, UUID victimId) {
+        if (killer.getUniqueId().equals(victimId)) {
+            return false;
+        }
         long now = System.currentTimeMillis();
-        KillPair pair = new KillPair(killer.getUniqueId(), victim.getUniqueId());
+        KillPair pair = new KillPair(killer.getUniqueId(), victimId);
         if (killCooldowns.getOrDefault(pair, 0L) > now) {
-            return;
+            return false;
         }
         killCooldowns.put(pair, now + PAIR_COOLDOWN_MILLIS);
         giveTokens(killer, TokenType.KILL, 1);
         markDirty();
+        return true;
     }
 
     @EventHandler(ignoreCancelled = true)

@@ -74,7 +74,7 @@ public final class ModificationFFA extends JavaPlugin implements Listener {
         tokenManager.start();
         spawnManager = new SpawnManager(this);
         spawnManager.start();
-        combatManager = new CombatManager(this, statsManager, spawnManager);
+        combatManager = new CombatManager(this, statsManager, spawnManager, tokenManager);
         combatManager.start();
         socialManager = new SocialManager();
         getServer().getPluginManager().registerEvents(statsManager, this);

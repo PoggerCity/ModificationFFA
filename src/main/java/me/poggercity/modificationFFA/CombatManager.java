@@ -24,6 +24,7 @@ import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDeathEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
+import org.bukkit.event.player.PlayerCommandPreprocessEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.inventory.EntityEquipment;
 import org.bukkit.inventory.ItemStack;
@@ -44,9 +45,11 @@ import java.util.Base64;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -56,29 +59,38 @@ final class CombatManager implements Listener, AutoCloseable {
 
     static final String TAG_PERMISSION = "modificationffa.command.combat.tag";
     static final String UNTAG_PERMISSION = "modificationffa.command.combat.untag";
+    static final String COMMAND_WHITELIST_PERMISSION =
+            "modificationffa.command.combat.commandwhitelist";
 
     private static final long COMBAT_MILLIS = 60_000L;
     private static final long SAVE_PERIOD_TICKS = 20L * 5L;
+    private static final Set<String> DEFAULT_COMMAND_WHITELIST = Set.of(
+            "msg", "message", "m", "whisper", "w", "tell", "pm", "reply", "r",
+            "apprend", "continue", "c", "a", "combat");
 
     private final JavaPlugin plugin;
     private final StatsManager statsManager;
     private final SpawnManager spawnManager;
+    private final TokenManager tokenManager;
     private final NamespacedKey loggerKey;
     private final Path dataFile;
     private final Gson gson = new Gson();
     private final Map<UUID, Long> combatEnds = new HashMap<>();
     private final Map<UUID, UUID> combatOpponents = new HashMap<>();
     private final Map<UUID, LoggerSession> loggerSessions = new HashMap<>();
+    private final Set<String> commandWhitelist = new LinkedHashSet<>(DEFAULT_COMMAND_WHITELIST);
     private final ExecutorService writer;
 
     private BukkitTask ticker;
     private BukkitTask saver;
     private boolean closed;
 
-    CombatManager(JavaPlugin plugin, StatsManager statsManager, SpawnManager spawnManager) {
+    CombatManager(JavaPlugin plugin, StatsManager statsManager, SpawnManager spawnManager,
+                  TokenManager tokenManager) {
         this.plugin = plugin;
         this.statsManager = statsManager;
         this.spawnManager = spawnManager;
+        this.tokenManager = tokenManager;
         this.loggerKey = new NamespacedKey(plugin, "combat_logger");
         this.dataFile = plugin.getDataFolder().toPath().resolve("combat.json");
         this.writer = Executors.newSingleThreadExecutor(runnable -> {
@@ -123,6 +135,7 @@ final class CombatManager implements Listener, AutoCloseable {
             }
             case "tag" -> forceTag(sender, args);
             case "untag" -> forceUntag(sender, args);
+            case "commandwhitelist" -> handleCommandWhitelist(sender, args);
             default -> sendHelp(sender);
         }
         return true;
@@ -137,6 +150,9 @@ final class CombatManager implements Listener, AutoCloseable {
             if (sender.hasPermission(UNTAG_PERMISSION)) {
                 options.add("untag");
             }
+            if (sender.hasPermission(COMMAND_WHITELIST_PERMISSION)) {
+                options.add("commandwhitelist");
+            }
             String partial = args[0].toLowerCase(Locale.ROOT);
             return options.stream().filter(option -> option.startsWith(partial)).toList();
         }
@@ -150,25 +166,75 @@ final class CombatManager implements Listener, AutoCloseable {
                     .filter(name -> name.toLowerCase(Locale.ROOT).startsWith(partial))
                     .sorted(String.CASE_INSENSITIVE_ORDER).toList();
         }
+        if (args[0].equalsIgnoreCase("commandwhitelist")
+                && sender.hasPermission(COMMAND_WHITELIST_PERMISSION)) {
+            if (args.length == 2) {
+                String partial = args[1].toLowerCase(Locale.ROOT);
+                return List.of("add", "delete", "list").stream()
+                        .filter(option -> option.startsWith(partial)).toList();
+            }
+            if (args.length == 3 && args[1].equalsIgnoreCase("add")) {
+                String partial = args[2].toLowerCase(Locale.ROOT);
+                return Bukkit.getCommandMap().getKnownCommands().keySet().stream()
+                        .map(command -> command.toLowerCase(Locale.ROOT))
+                        .filter(command -> !command.contains(":"))
+                        .filter(command -> !commandWhitelist.contains(command))
+                        .filter(command -> command.startsWith(partial))
+                        .distinct().sorted().toList();
+            }
+            if (args.length == 3 && args[1].equalsIgnoreCase("delete")) {
+                String partial = args[2].toLowerCase(Locale.ROOT);
+                return commandWhitelist.stream()
+                        .filter(command -> !command.equals("combat"))
+                        .filter(command -> command.startsWith(partial))
+                        .sorted().toList();
+            }
+        }
         return List.of();
+    }
+
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onCommandWhileInCombat(PlayerCommandPreprocessEvent event) {
+        Long end = combatEnds.get(event.getPlayer().getUniqueId());
+        if (end == null) {
+            return;
+        }
+        if (end <= System.currentTimeMillis()) {
+            clearCombat(event.getPlayer().getUniqueId(), false);
+            return;
+        }
+
+        String input = event.getMessage();
+        int separator = input.indexOf(' ');
+        String root = input.substring(1, separator < 0 ? input.length() : separator)
+                .toLowerCase(Locale.ROOT);
+        if (!commandWhitelist.contains(root)) {
+            event.setCancelled(true);
+            event.getPlayer().sendMessage(MessageStyle.prefixed(
+                    "You cannot use that command while in combat."));
+        }
     }
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onPlayerDamage(EntityDamageByEntityEvent event) {
-        if (!(event.getEntity() instanceof Player victim)) {
-            return;
-        }
         Player attacker = attackingPlayer(event.getDamager());
-        if (attacker == null || attacker.equals(victim) || attacker.getGameMode() == GameMode.SPECTATOR) {
+        if (attacker == null || attacker.getGameMode() == GameMode.SPECTATOR) {
             return;
         }
-        long end = System.currentTimeMillis() + COMBAT_MILLIS;
-        combatEnds.put(attacker.getUniqueId(), end);
-        combatEnds.put(victim.getUniqueId(), end);
-        combatOpponents.put(attacker.getUniqueId(), victim.getUniqueId());
-        combatOpponents.put(victim.getUniqueId(), attacker.getUniqueId());
-        showTimer(attacker, 60L);
-        showTimer(victim, 60L);
+
+        if (event.getEntity() instanceof Player victim) {
+            if (attacker.equals(victim)) {
+                return;
+            }
+            tagPlayer(attacker, victim.getUniqueId());
+            tagPlayer(victim, attacker.getUniqueId());
+            return;
+        }
+
+        UUID owner = activeLoggerOwner(event.getEntity());
+        if (owner != null && !owner.equals(attacker.getUniqueId())) {
+            tagPlayer(attacker, owner);
+        }
     }
 
     @EventHandler(priority = EventPriority.MONITOR)
@@ -205,6 +271,7 @@ final class CombatManager implements Listener, AutoCloseable {
         if (session == null) {
             return;
         }
+        clearLoggerOpponents(player.getUniqueId());
 
         Zombie zombie = findZombie(session);
         if (!session.dead && zombie != null && !zombie.isDead()) {
@@ -245,9 +312,12 @@ final class CombatManager implements Listener, AutoCloseable {
         LoggerSession session = loggerSessions.get(owner);
         event.getDrops().clear();
         event.setDroppedExp(0);
-        if (session == null || session.dead) {
+        if (session == null || session.dead || session.zombieId == null
+                || !session.zombieId.equals(zombie.getUniqueId().toString())) {
             return;
         }
+
+        Player killer = zombie.getKiller();
 
         for (String encoded : session.snapshot.inventory) {
             ItemStack item = decodeItem(encoded);
@@ -259,6 +329,10 @@ final class CombatManager implements Listener, AutoCloseable {
         session.zombieId = null;
         session.snapshot.inventory = new ArrayList<>();
         session.snapshot.location = SavedLocation.from(zombie.getLocation());
+        clearLoggerOpponents(owner);
+        if (killer != null) {
+            tokenManager.awardKillToken(killer, owner);
+        }
         queueSave();
     }
 
@@ -317,6 +391,7 @@ final class CombatManager implements Listener, AutoCloseable {
         zombie.setRemoveWhenFarAway(false);
         zombie.setCanPickupItems(false);
         zombie.setShouldBurnInDay(false);
+        configureLoggerBody(zombie);
 
         AttributeInstance maxHealth = zombie.getAttribute(Attribute.MAX_HEALTH);
         if (maxHealth != null) {
@@ -415,6 +490,12 @@ final class CombatManager implements Listener, AutoCloseable {
                 .append(Component.text(seconds, NamedTextColor.GREEN)));
     }
 
+    private void tagPlayer(Player player, UUID opponent) {
+        combatEnds.put(player.getUniqueId(), System.currentTimeMillis() + COMBAT_MILLIS);
+        combatOpponents.put(player.getUniqueId(), opponent);
+        showTimer(player, 60L);
+    }
+
     private long secondsRemaining(long end) {
         return Math.max(0L, (end - System.currentTimeMillis() + 999L) / 1000L);
     }
@@ -456,6 +537,7 @@ final class CombatManager implements Listener, AutoCloseable {
             return;
         }
         combatEnds.put(target.getUniqueId(), System.currentTimeMillis() + COMBAT_MILLIS);
+        combatOpponents.remove(target.getUniqueId());
         showTimer(target, 60L);
         sender.sendMessage(MessageStyle.prefix()
                 .append(Component.text(target.getName(), NamedTextColor.GREEN))
@@ -484,6 +566,68 @@ final class CombatManager implements Listener, AutoCloseable {
                         NamedTextColor.GRAY)));
     }
 
+    private void handleCommandWhitelist(CommandSender sender, String[] args) {
+        if (!sender.hasPermission(COMMAND_WHITELIST_PERMISSION)) {
+            sendPermissionDenied(sender, COMMAND_WHITELIST_PERMISSION);
+            return;
+        }
+        if (args.length == 2 && args[1].equalsIgnoreCase("list")) {
+            String commands = commandWhitelist.stream().sorted().map(command -> "/" + command)
+                    .collect(java.util.stream.Collectors.joining(", "));
+            sender.sendMessage(MessageStyle.prefixed("Combat command whitelist: " + commands));
+            return;
+        }
+        if (args.length != 3
+                || (!args[1].equalsIgnoreCase("add") && !args[1].equalsIgnoreCase("delete"))) {
+            sender.sendMessage(MessageStyle.prefixed(
+                    "Usage: /combat commandwhitelist <add|delete> <command> or list."));
+            return;
+        }
+
+        String command = args[2].toLowerCase(Locale.ROOT);
+        if (!validRootCommand(command)) {
+            sender.sendMessage(MessageStyle.prefixed(
+                    "Enter one root command without / or spaces."));
+            return;
+        }
+        if (args[1].equalsIgnoreCase("add")) {
+            boolean added = commandWhitelist.add(command);
+            sender.sendMessage(MessageStyle.prefixed(added
+                    ? "/" + command + " is now allowed in combat."
+                    : "/" + command + " is already allowed in combat."));
+            if (added) {
+                queueSave();
+            }
+            return;
+        }
+        if (command.equals("combat")) {
+            sender.sendMessage(MessageStyle.prefixed(
+                    "/combat must remain allowed so the combat timer can be checked."));
+            return;
+        }
+        boolean removed = commandWhitelist.remove(command);
+        sender.sendMessage(MessageStyle.prefixed(removed
+                ? "/" + command + " is no longer allowed in combat."
+                : "/" + command + " was not in the combat command whitelist."));
+        if (removed) {
+            queueSave();
+        }
+    }
+
+    private boolean validRootCommand(String command) {
+        if (command.isBlank() || command.indexOf('/') >= 0) {
+            return false;
+        }
+        for (int index = 0; index < command.length(); index++) {
+            char character = command.charAt(index);
+            if (!Character.isLetterOrDigit(character) && character != '_' && character != '-'
+                    && character != ':') {
+                return false;
+            }
+        }
+        return true;
+    }
+
     private void sendHelp(CommandSender sender) {
         sender.sendMessage(Component.text("------ ", NamedTextColor.GRAY)
                 .append(Component.text("Combat Help", NamedTextColor.GREEN))
@@ -495,6 +639,10 @@ final class CombatManager implements Listener, AutoCloseable {
         }
         if (sender.hasPermission(UNTAG_PERMISSION)) {
             helpLine(sender, "/combat untag <player>", "Untag a player from combat.");
+        }
+        if (sender.hasPermission(COMMAND_WHITELIST_PERMISSION)) {
+            helpLine(sender, "/combat commandwhitelist <add|delete|list>",
+                    "Configure commands players may use in combat.");
         }
     }
 
@@ -511,7 +659,12 @@ final class CombatManager implements Listener, AutoCloseable {
     private void restoreLoggerEntities() {
         for (Map.Entry<UUID, LoggerSession> entry : loggerSessions.entrySet()) {
             LoggerSession session = entry.getValue();
-            if (session.dead || findZombie(session) != null) {
+            if (session.dead) {
+                continue;
+            }
+            Zombie existing = findZombie(session);
+            if (existing != null) {
+                configureLoggerBody(existing);
                 continue;
             }
             try {
@@ -523,6 +676,43 @@ final class CombatManager implements Listener, AutoCloseable {
             }
         }
         queueSave();
+    }
+
+    private void configureLoggerBody(Zombie zombie) {
+        zombie.setAI(false);
+        zombie.setGravity(true);
+        AttributeInstance knockbackResistance = zombie.getAttribute(Attribute.KNOCKBACK_RESISTANCE);
+        if (knockbackResistance != null) {
+            knockbackResistance.setBaseValue(1.0D);
+        }
+    }
+
+    private UUID activeLoggerOwner(Entity entity) {
+        if (!(entity instanceof Zombie zombie)) {
+            return null;
+        }
+        String rawOwner = zombie.getPersistentDataContainer().get(loggerKey, PersistentDataType.STRING);
+        if (rawOwner == null) {
+            return null;
+        }
+        try {
+            UUID owner = UUID.fromString(rawOwner);
+            LoggerSession session = loggerSessions.get(owner);
+            return session != null && !session.dead && session.zombieId != null
+                    && session.zombieId.equals(zombie.getUniqueId().toString()) ? owner : null;
+        } catch (IllegalArgumentException ignored) {
+            return null;
+        }
+    }
+
+    private void clearLoggerOpponents(UUID owner) {
+        List<UUID> attackers = combatOpponents.entrySet().stream()
+                .filter(entry -> owner.equals(entry.getValue()))
+                .map(Map.Entry::getKey)
+                .toList();
+        for (UUID attacker : attackers) {
+            clearCombat(attacker, true);
+        }
     }
 
     private Zombie findZombie(LoggerSession session) {
@@ -583,6 +773,7 @@ final class CombatManager implements Listener, AutoCloseable {
         combatEnds.forEach((uuid, end) -> result.tags.put(uuid.toString(), end));
         combatOpponents.forEach((uuid, opponent) -> result.opponents.put(uuid.toString(), opponent.toString()));
         loggerSessions.forEach((uuid, session) -> result.sessions.put(uuid.toString(), session.copy()));
+        result.commandWhitelist = new ArrayList<>(commandWhitelist);
         return result;
     }
 
@@ -624,6 +815,15 @@ final class CombatManager implements Listener, AutoCloseable {
                         });
                     }
                 });
+            }
+            if (stored.commandWhitelist != null) {
+                commandWhitelist.clear();
+                stored.commandWhitelist.stream()
+                        .filter(java.util.Objects::nonNull)
+                        .map(command -> command.toLowerCase(Locale.ROOT))
+                        .filter(this::validRootCommand)
+                        .forEach(commandWhitelist::add);
+                commandWhitelist.add("combat");
             }
         } catch (IOException | RuntimeException exception) {
             plugin.getLogger().warning("Could not load combat.json: " + exception.getMessage());
@@ -688,6 +888,7 @@ final class CombatManager implements Listener, AutoCloseable {
         private Map<String, Long> tags = new LinkedHashMap<>();
         private Map<String, String> opponents = new LinkedHashMap<>();
         private Map<String, LoggerSession> sessions = new LinkedHashMap<>();
+        private List<String> commandWhitelist;
     }
 
     private static final class LoggerSession {
