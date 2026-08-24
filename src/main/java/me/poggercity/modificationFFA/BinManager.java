@@ -33,6 +33,7 @@ final class BinManager implements Listener, AutoCloseable {
     private static final int DELETE_SLOT = 31;
     private static final long ANIMATION_PERIOD_TICKS = 1L;
     private static final int ANIMATION_FRAME_COUNT = 80;
+    private static final double GRADIENT_HALF_WIDTH = 3.5;
     private static final String DELETE_LABEL = "Delete Items";
     private static final int GRADIENT_PURPLE = 0xA000B8;
     private static final int GRADIENT_PINK = 0xE100A8;
@@ -199,8 +200,11 @@ final class BinManager implements Listener, AutoCloseable {
     private List<ItemStack> createDeleteFrames() {
         List<ItemStack> frames = new ArrayList<>(ANIMATION_FRAME_COUNT);
         for (int phase = 0; phase < ANIMATION_FRAME_COUNT; phase++) {
-            TextColor color = gradientColor(animationProgress(phase));
-            Component name = Component.text(DELETE_LABEL, color);
+            Component name = Component.empty();
+            for (int character = 0; character < DELETE_LABEL.length(); character++) {
+                TextColor color = gradientColor(animationProgress(phase, character));
+                name = name.append(Component.text(DELETE_LABEL.charAt(character), color));
+            }
 
             ItemStack button = new ItemStack(Material.LAVA_BUCKET);
             ItemMeta meta = button.getItemMeta();
@@ -211,11 +215,16 @@ final class BinManager implements Listener, AutoCloseable {
         return List.copyOf(frames);
     }
 
-    private double animationProgress(int phase) {
+    private double animationProgress(int phase, int character) {
         int halfCycle = ANIMATION_FRAME_COUNT / 2;
-        return phase <= halfCycle
+        double time = phase <= halfCycle
                 ? phase / (double) halfCycle
                 : (ANIMATION_FRAME_COUNT - phase) / (double) halfCycle;
+        double front = -GRADIENT_HALF_WIDTH
+                + (time * ((DELETE_LABEL.length() - 1) + (GRADIENT_HALF_WIDTH * 2.0)));
+        double blend = (front - character + GRADIENT_HALF_WIDTH) / (GRADIENT_HALF_WIDTH * 2.0);
+        blend = Math.max(0.0, Math.min(1.0, blend));
+        return blend * blend * (3.0 - (2.0 * blend));
     }
 
     private TextColor gradientColor(double progress) {
