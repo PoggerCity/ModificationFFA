@@ -314,7 +314,7 @@ final class KitManager implements AutoCloseable {
                     .append(Component.text(material.name(), NamedTextColor.GREEN))
                     .append(Component.text(" item.", NamedTextColor.GRAY)));
             case WRONG_AMOUNT -> player.sendMessage(prefixed(
-                    "Your kit must contain the same item amounts as the main kit."));
+                    "Your kit cannot contain more items than the main kit."));
             case MORE_DURABILITY -> player.sendMessage(prefixed(
                     "Your kit cannot contain items with more durability than the main kit."));
             default -> player.sendMessage(prefixed("Your kit does not match the main kit."));

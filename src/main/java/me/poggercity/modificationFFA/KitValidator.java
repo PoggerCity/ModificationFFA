@@ -46,13 +46,13 @@ final class KitValidator {
         }
 
         for (ItemGroup group : groups) {
-            if (group.candidateAmount != group.mainAmount) {
+            if (group.candidateAmount > group.mainAmount) {
                 return SaveResult.failure(Failure.WRONG_AMOUNT, group.prototype.getType());
             }
 
             group.mainDamage.sort(Comparator.naturalOrder());
             group.candidateDamage.sort(Comparator.naturalOrder());
-            for (int index = 0; index < group.mainDamage.size(); index++) {
+            for (int index = 0; index < group.candidateDamage.size(); index++) {
                 if (group.candidateDamage.get(index) < group.mainDamage.get(index)) {
                     return SaveResult.failure(Failure.MORE_DURABILITY, group.prototype.getType());
                 }
