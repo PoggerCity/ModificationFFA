@@ -28,11 +28,13 @@ import org.bukkit.event.block.BlockExplodeEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.block.BlockPistonExtendEvent;
 import org.bukkit.event.block.BlockPistonRetractEvent;
+import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityExplodeEvent;
 import org.bukkit.event.entity.EntityPickupItemEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryDragEvent;
+import org.bukkit.event.player.PlayerItemDamageEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemFlag;
@@ -243,8 +245,13 @@ final class TokenManager implements Listener, AutoCloseable {
         markDirty();
     }
 
-    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onBlockBreak(BlockBreakEvent event) {
+        if (isProtectedToolToken(event.getPlayer().getInventory().getItemInMainHand())) {
+            event.setCancelled(true);
+            return;
+        }
+
         NodeKey key = NodeKey.of(event.getBlock());
         ResourceNode node = nodes.get(key);
         if (node == null) {
@@ -261,6 +268,21 @@ final class TokenManager implements Listener, AutoCloseable {
         event.getBlock().setType(node.replacement, false);
         giveTokens(event.getPlayer(), node.kind.reward, 1);
         markDirty();
+    }
+
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onTokenToolDamage(EntityDamageByEntityEvent event) {
+        if (event.getDamager() instanceof Player player
+                && isProtectedToolToken(player.getInventory().getItemInMainHand())) {
+            event.setCancelled(true);
+        }
+    }
+
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onTokenToolDurability(PlayerItemDamageEvent event) {
+        if (isProtectedToolToken(event.getItem())) {
+            event.setCancelled(true);
+        }
     }
 
     @EventHandler(ignoreCancelled = true)
@@ -492,6 +514,17 @@ final class TokenManager implements Listener, AutoCloseable {
             return false;
         }
         return type.name().equals(item.getPersistentDataContainer().get(tokenKey, PersistentDataType.STRING));
+    }
+
+    private boolean isProtectedToolToken(ItemStack item) {
+        if (item == null || item.getType().isAir()) {
+            return false;
+        }
+        String type = item.getPersistentDataContainer().get(tokenKey, PersistentDataType.STRING);
+        return TokenType.MINING.name().equals(type)
+                || TokenType.WOOD.name().equals(type)
+                || TokenType.COMPRESSED_MINING.name().equals(type)
+                || TokenType.COMPRESSED_WOOD.name().equals(type);
     }
 
     private void animateExecutioners() {
@@ -767,17 +800,17 @@ final class TokenManager implements Listener, AutoCloseable {
     }
 
     private enum TokenType {
-        KILL(Material.NETHER_STAR, "🗡", "KILL Token", NamedTextColor.YELLOW, true,
+        KILL(Material.NETHER_STAR, "🗡", "Kill Token", NamedTextColor.YELLOW, true,
                 List.of(), "kill"),
         MINING(Material.WOODEN_PICKAXE, "⛏", "Mining Token", NamedTextColor.GRAY, true,
                 List.of("Trade this with the miner to get a kill token!", "You can find the miner at the mine shaft or temple."), "mining", "mine"),
-        WOOD(Material.WOODEN_AXE, "♧", "Wood Token", TextColor.color(0x865546), true,
+        WOOD(Material.WOODEN_AXE, "🪓", "Wood Token", TextColor.color(0x865546), true,
                 List.of("Trade this with the lumberjack to get a kill token!", "You can find the lumberjack at the igloo."), "wood", "lumber"),
         AFK(Material.CLOCK, "☁", "AFK Token", TextColor.color(0x72BFC8), false,
                 List.of(), "afk"),
         COMPRESSED_MINING(Material.STONE_PICKAXE, "⛏", "Compressed Mining Token", NamedTextColor.GRAY, true,
                 List.of("Trade this with the miner to get a kill token!", "You can find the miner at the mine shaft or temple."), "compressed_mining", "compressedmine"),
-        COMPRESSED_WOOD(Material.STONE_AXE, "♧", "Compressed Wood Token", TextColor.color(0x865546), true,
+        COMPRESSED_WOOD(Material.STONE_AXE, "🪓", "Compressed Wood Token", TextColor.color(0x865546), true,
                 List.of("Trade this with the lumberjack to get a kill token!", "You can find the lumberjack at the igloo."), "compressed_wood", "compressed_lumber"),
         ENCHANTED_KILL(Material.BEACON, "💰", "Enchanted Kill Token", NamedTextColor.YELLOW, false,
                 List.of(), "enchanted_kill", "enchanted"),
