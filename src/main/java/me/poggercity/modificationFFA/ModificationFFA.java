@@ -39,7 +39,9 @@ public final class ModificationFFA extends JavaPlugin {
         String author = authors.isEmpty() ? "Unknown" : String.join(", ", authors);
 
         sender.sendMessage(Component.text("The server is running ", NamedTextColor.GRAY)
-                .append(Component.text(pluginName + " v" + version, NamedTextColor.GREEN)));
+                .append(Component.text(pluginName, NamedTextColor.GREEN))
+                .append(Component.text(" v", NamedTextColor.GRAY))
+                .append(Component.text(version, NamedTextColor.GREEN)));
         sender.sendMessage(Component.text("The plugin was created by: ", NamedTextColor.GRAY)
                 .append(Component.text(author, NamedTextColor.GREEN)));
         sender.sendMessage(Component.text("Run ", NamedTextColor.GRAY)
