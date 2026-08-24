@@ -32,7 +32,10 @@ final class BinManager implements Listener, AutoCloseable {
     private static final int STORAGE_SIZE = 27;
     private static final int DELETE_SLOT = 31;
     private static final long ANIMATION_PERIOD_TICKS = 2L;
-    private static final int ANIMATION_FRAME_COUNT = 40;
+    private static final int SOLID_COLOR_FRAMES = 6;
+    private static final int TRANSITION_FRAMES = 18;
+    private static final int ANIMATION_FRAME_COUNT = (SOLID_COLOR_FRAMES + TRANSITION_FRAMES) * 2;
+    private static final double GRADIENT_EDGE_WIDTH = 0.28;
     private static final String DELETE_LABEL = "Delete Items";
     private static final int GRADIENT_PURPLE = 0xA000B8;
     private static final int GRADIENT_YELLOW = 0xFFD21A;
@@ -75,7 +78,7 @@ final class BinManager implements Listener, AutoCloseable {
         Inventory inventory = Bukkit.createInventory(
                 holder,
                 INVENTORY_SIZE,
-                Component.text("Modification Bin", NamedTextColor.LIGHT_PURPLE)
+                Component.text("Modification Bin", TextColor.color(GRADIENT_PURPLE))
         );
         holder.setInventory(inventory);
 
@@ -189,9 +192,7 @@ final class BinManager implements Listener, AutoCloseable {
         for (int phase = 0; phase < ANIMATION_FRAME_COUNT; phase++) {
             Component name = Component.empty();
             for (int character = 0; character < DELETE_LABEL.length(); character++) {
-                double position = (character / (double) (DELETE_LABEL.length() - 1)
-                        + phase / (double) ANIMATION_FRAME_COUNT) % 1.0;
-                double progress = (1.0 - Math.cos(position * Math.PI * 2.0)) / 2.0;
+                double progress = animationProgress(phase, character);
                 TextColor color = gradientColor(progress);
                 name = name.append(Component.text(DELETE_LABEL.charAt(character), color));
             }
@@ -203,6 +204,34 @@ final class BinManager implements Listener, AutoCloseable {
             frames.add(button);
         }
         return List.copyOf(frames);
+    }
+
+    private double animationProgress(int phase, int character) {
+        if (phase < SOLID_COLOR_FRAMES) {
+            return 0.0;
+        }
+
+        int yellowStart = SOLID_COLOR_FRAMES + TRANSITION_FRAMES;
+        if (phase < yellowStart) {
+            double time = (phase - SOLID_COLOR_FRAMES) / (double) (TRANSITION_FRAMES - 1);
+            return movingGradient(time, character);
+        }
+        if (phase < yellowStart + SOLID_COLOR_FRAMES) {
+            return 1.0;
+        }
+
+        double time = (phase - yellowStart - SOLID_COLOR_FRAMES) / (double) (TRANSITION_FRAMES - 1);
+        return 1.0 - movingGradient(time, character);
+    }
+
+    private double movingGradient(double time, int character) {
+        double easedTime = time * time * (3.0 - (2.0 * time));
+        double center = -GRADIENT_EDGE_WIDTH + ((1.0 + (GRADIENT_EDGE_WIDTH * 2.0)) * easedTime);
+        double position = character / (double) (DELETE_LABEL.length() - 1);
+        double blend = (position - (center - GRADIENT_EDGE_WIDTH)) / (GRADIENT_EDGE_WIDTH * 2.0);
+        blend = Math.max(0.0, Math.min(1.0, blend));
+        double smoothBlend = blend * blend * (3.0 - (2.0 * blend));
+        return 1.0 - smoothBlend;
     }
 
     private TextColor gradientColor(double progress) {
