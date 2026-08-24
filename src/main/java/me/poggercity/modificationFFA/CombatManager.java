@@ -61,6 +61,7 @@ final class CombatManager implements Listener, AutoCloseable {
     static final String UNTAG_PERMISSION = "modificationffa.command.combat.untag";
     static final String COMMAND_WHITELIST_PERMISSION =
             "modificationffa.command.combat.commandwhitelist";
+    static final String COMMAND_BYPASS_PERMISSION = "combat.command.bypass";
 
     private static final long COMBAT_MILLIS = 60_000L;
     private static final long SAVE_PERIOD_TICKS = 20L * 5L;
@@ -195,6 +196,10 @@ final class CombatManager implements Listener, AutoCloseable {
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onCommandWhileInCombat(PlayerCommandPreprocessEvent event) {
+        if (event.getPlayer().isOp()
+                || event.getPlayer().hasPermission(COMMAND_BYPASS_PERMISSION)) {
+            return;
+        }
         Long end = combatEnds.get(event.getPlayer().getUniqueId());
         if (end == null) {
             return;

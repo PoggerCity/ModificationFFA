@@ -111,3 +111,6 @@ permissions:
   modificationffa.command.combat.commandwhitelist:
     description: Allows configuring commands available during combat.
     default: op
+  combat.command.bypass:
+    description: Allows using all commands while in combat.
+    default: op
