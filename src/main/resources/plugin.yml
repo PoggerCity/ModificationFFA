@@ -29,8 +29,37 @@ commands:
     aliases: [trash]
   clear:
     description: Clears your inventory.
-    usage: /clear
+    usage: /clear [player]
     permission: modificationffa.clear
+  find:
+    description: Finds an online player and their current biome region.
+    usage: /find <player>
+    aliases: [locate]
+  ping:
+    description: Shows your ping or another player's ping.
+    usage: /ping [player]
+  stats:
+    description: Shows your combat and item statistics.
+    usage: /stats [player]
+  biome:
+    description: Creates and manages custom biome regions.
+    usage: /biome help
+    permission: modificationffa.biome.admin
+  executioner:
+    description: Opens the Executioner Trader.
+    usage: /executioner
+  tokens:
+    description: Manages ModificationFFA tokens.
+    usage: /tokens give <player> <type> <amount>
+    permission: modificationffa.tokens.admin
+  lumbertoken:
+    description: Creates regenerating lumber-token nodes.
+    usage: /lumbertoken give <player> <log_type>
+    permission: modificationffa.tokens.admin
+  miningtoken:
+    description: Creates regenerating mining-token nodes.
+    usage: /miningtoken give <player> <ore_type>
+    permission: modificationffa.tokens.admin
 
 permissions:
   modificationffa.reload:
@@ -45,3 +74,12 @@ permissions:
   modificationffa.clear:
     description: Allows clearing your own inventory.
     default: true
+  modificationffa.clear.others:
+    description: Allows clearing another online player's inventory.
+    default: op
+  modificationffa.biome.admin:
+    description: Allows creating and deleting custom biome regions.
+    default: op
+  modificationffa.tokens.admin:
+    description: Allows giving tokens and regenerating resource nodes.
+    default: op

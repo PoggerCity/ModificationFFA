@@ -32,15 +32,19 @@ final class BinManager implements Listener, AutoCloseable {
     private static final int STORAGE_SIZE = 27;
     private static final int DELETE_SLOT = 31;
     private static final long ANIMATION_PERIOD_TICKS = 1L;
-    private static final int ANIMATION_FRAME_COUNT = 80;
+    private static final int ANIMATION_FRAME_COUNT = 120;
     private static final String DELETE_LABEL = "Delete Items";
     private static final int GRADIENT_PURPLE = 0xA000B8;
+    private static final int GRADIENT_DEEP_PINK = 0xC000B4;
     private static final int GRADIENT_PINK = 0xE100A8;
+    private static final int GRADIENT_CORAL = 0xF34C68;
     private static final int GRADIENT_GOLD = 0xFF9200;
     private static final int GRADIENT_YELLOW = 0xFFD21A;
     private static final int[] GRADIENT_STOPS = {
             GRADIENT_PURPLE,
+            GRADIENT_DEEP_PINK,
             GRADIENT_PINK,
+            GRADIENT_CORAL,
             GRADIENT_GOLD,
             GRADIENT_YELLOW
     };

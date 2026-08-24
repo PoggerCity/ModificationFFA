@@ -32,6 +32,10 @@ public final class ModificationFFA extends JavaPlugin implements Listener {
 
     private KitManager kitManager;
     private BinManager binManager;
+    private PlayerUtilityCommands playerUtilityCommands;
+    private StatsManager statsManager;
+    private BiomeManager biomeManager;
+    private TokenManager tokenManager;
     private LinkMessages linkMessages;
     private BukkitTask reminderTask;
     private Sound reminderSound;
@@ -55,6 +59,16 @@ public final class ModificationFFA extends JavaPlugin implements Listener {
         kitManager.start();
         binManager = new BinManager(this);
         binManager.start();
+        playerUtilityCommands = new PlayerUtilityCommands();
+        statsManager = new StatsManager(this);
+        statsManager.start();
+        biomeManager = new BiomeManager(this);
+        biomeManager.start();
+        tokenManager = new TokenManager(this);
+        tokenManager.start();
+        getServer().getPluginManager().registerEvents(statsManager, this);
+        getServer().getPluginManager().registerEvents(biomeManager, this);
+        getServer().getPluginManager().registerEvents(tokenManager, this);
         getServer().getPluginManager().registerEvents(this, this);
         getLogger().info("ModificationFFA has been enabled.");
     }
@@ -67,6 +81,15 @@ public final class ModificationFFA extends JavaPlugin implements Listener {
         }
         if (binManager != null) {
             binManager.close();
+        }
+        if (statsManager != null) {
+            statsManager.close();
+        }
+        if (biomeManager != null) {
+            biomeManager.close();
+        }
+        if (tokenManager != null) {
+            tokenManager.close();
         }
         linkCommandUses.clear();
         getLogger().info("ModificationFFA has been disabled.");
@@ -84,7 +107,14 @@ public final class ModificationFFA extends JavaPlugin implements Listener {
             case "store" -> sendLinkCommand(sender, linkMessages.store());
             case "kit" -> kitManager.handleCommand(sender, args);
             case "bin" -> binManager.open(sender);
-            case "clear" -> clearInventory(sender, args);
+            case "clear", "ping" -> playerUtilityCommands.handleCommand(sender, command.getName(), args);
+            case "stats" -> statsManager.handleCommand(sender, args);
+            case "biome" -> biomeManager.handleBiome(sender, args);
+            case "find" -> biomeManager.handleFind(sender, args);
+            case "executioner" -> tokenManager.handleExecutioner(sender, args);
+            case "tokens" -> tokenManager.handleTokens(sender, args);
+            case "lumbertoken" -> tokenManager.handleLumberToken(sender, args);
+            case "miningtoken" -> tokenManager.handleMiningToken(sender, args);
             case "modification" -> handleModificationCommand(sender, args);
             default -> false;
         };
@@ -99,6 +129,27 @@ public final class ModificationFFA extends JavaPlugin implements Listener {
     ) {
         if (command.getName().equalsIgnoreCase("kit")) {
             return kitManager.tabComplete(sender, args);
+        }
+        if (command.getName().equalsIgnoreCase("clear") || command.getName().equalsIgnoreCase("ping")) {
+            return playerUtilityCommands.tabComplete(sender, command.getName(), args);
+        }
+        if (command.getName().equalsIgnoreCase("stats")) {
+            return statsManager.tabComplete(args);
+        }
+        if (command.getName().equalsIgnoreCase("biome")) {
+            return biomeManager.biomeTabComplete(sender, args);
+        }
+        if (command.getName().equalsIgnoreCase("find")) {
+            return biomeManager.findTabComplete(sender, args);
+        }
+        if (command.getName().equalsIgnoreCase("tokens")) {
+            return tokenManager.tabCompleteTokens(sender, args);
+        }
+        if (command.getName().equalsIgnoreCase("lumbertoken")) {
+            return tokenManager.tabCompleteLumberToken(sender, args);
+        }
+        if (command.getName().equalsIgnoreCase("miningtoken")) {
+            return tokenManager.tabCompleteMiningToken(sender, args);
         }
         if (command.getName().equalsIgnoreCase("modification") && args.length == 1) {
             List<String> available = sender.hasPermission("modificationffa.reload")
@@ -162,6 +213,14 @@ public final class ModificationFFA extends JavaPlugin implements Listener {
                     .append(Component.text(" - Open the Modification Bin.", NamedTextColor.GRAY)));
             sender.sendMessage(Component.text("/clear", NamedTextColor.GREEN)
                     .append(Component.text(" - Clear your inventory.", NamedTextColor.GRAY)));
+            sender.sendMessage(Component.text("/ping", NamedTextColor.GREEN)
+                    .append(Component.text(" - View a player's ping.", NamedTextColor.GRAY)));
+            sender.sendMessage(Component.text("/find", NamedTextColor.GREEN)
+                    .append(Component.text(" - Find a player and their biome.", NamedTextColor.GRAY)));
+            sender.sendMessage(Component.text("/stats", NamedTextColor.GREEN)
+                    .append(Component.text(" - View player statistics.", NamedTextColor.GRAY)));
+            sender.sendMessage(Component.text("/executioner", NamedTextColor.GREEN)
+                    .append(Component.text(" - Open the Executioner Trader.", NamedTextColor.GRAY)));
             if (sender.hasPermission("modificationffa.reload")) {
                 sender.sendMessage(Component.text("/modification reload", NamedTextColor.GREEN)
                         .append(Component.text(" - Reload config.yml and messages.json.", NamedTextColor.GRAY)));
@@ -188,22 +247,6 @@ public final class ModificationFFA extends JavaPlugin implements Listener {
             getLogger().warning("Could not reload ModificationFFA configuration: " + exception.getMessage());
             sender.sendMessage(Component.text("Reload failed. Check the console for details.", NamedTextColor.RED));
         }
-        return true;
-    }
-
-    private boolean clearInventory(CommandSender sender, String[] args) {
-        if (args.length > 0) {
-            sender.sendMessage(MessageStyle.prefixed("Usage: /clear"));
-            return true;
-        }
-        if (!(sender instanceof Player player)) {
-            sender.sendMessage(MessageStyle.prefixed("This command can only be used by players."));
-            return true;
-        }
-
-        player.getInventory().clear();
-        player.updateInventory();
-        player.sendMessage(MessageStyle.prefixed("You have cleared your inventory."));
         return true;
     }
 
