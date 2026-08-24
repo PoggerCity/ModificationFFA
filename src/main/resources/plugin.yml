@@ -23,6 +23,10 @@ commands:
   kit:
     description: Loads and manages your ModificationFFA kit layout.
     usage: /kit help
+  bin:
+    description: Opens the Modification Bin.
+    usage: /bin
+    aliases: [trash]
 
 permissions:
   modificationffa.reload:

@@ -31,6 +31,7 @@ public final class ModificationFFA extends JavaPlugin implements Listener {
     private final Map<UUID, Long> linkCommandUses = new HashMap<>();
 
     private KitManager kitManager;
+    private BinManager binManager;
     private LinkMessages linkMessages;
     private BukkitTask reminderTask;
     private Sound reminderSound;
@@ -52,6 +53,8 @@ public final class ModificationFFA extends JavaPlugin implements Listener {
 
         kitManager = new KitManager(this);
         kitManager.start();
+        binManager = new BinManager(this);
+        binManager.start();
         getServer().getPluginManager().registerEvents(this, this);
         getLogger().info("ModificationFFA has been enabled.");
     }
@@ -61,6 +64,9 @@ public final class ModificationFFA extends JavaPlugin implements Listener {
         cancelReminderTask();
         if (kitManager != null) {
             kitManager.close();
+        }
+        if (binManager != null) {
+            binManager.close();
         }
         linkCommandUses.clear();
         getLogger().info("ModificationFFA has been disabled.");
@@ -77,6 +83,7 @@ public final class ModificationFFA extends JavaPlugin implements Listener {
             case "discord" -> sendLinkCommand(sender, linkMessages.discord());
             case "store" -> sendLinkCommand(sender, linkMessages.store());
             case "kit" -> kitManager.handleCommand(sender, args);
+            case "bin" -> binManager.open(sender);
             case "modification" -> handleModificationCommand(sender, args);
             default -> false;
         };
@@ -150,6 +157,8 @@ public final class ModificationFFA extends JavaPlugin implements Listener {
                     .append(Component.text(" - View the Discord link.", NamedTextColor.GRAY)));
             sender.sendMessage(Component.text("/store", NamedTextColor.GREEN)
                     .append(Component.text(" - View the store link.", NamedTextColor.GRAY)));
+            sender.sendMessage(Component.text("/bin", NamedTextColor.GREEN)
+                    .append(Component.text(" - Open the Modification Bin.", NamedTextColor.GRAY)));
             if (sender.hasPermission("modificationffa.reload")) {
                 sender.sendMessage(Component.text("/modification reload", NamedTextColor.GREEN)
                         .append(Component.text(" - Reload config.yml and messages.json.", NamedTextColor.GRAY)));
