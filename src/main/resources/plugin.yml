@@ -13,3 +13,17 @@ commands:
     description: Shows information about ModificationFFA.
     usage: /modification
     aliases: [modificationffa]
+  discord:
+    description: Shows the server Discord link.
+    usage: /discord
+  store:
+    description: Shows the server store link.
+    usage: /store
+
+permissions:
+  modificationffa.reload:
+    description: Allows reloading ModificationFFA's configuration.
+    default: op
+  modificationffa.cooldown.bypass:
+    description: Bypasses the shared /discord and /store cooldown.
+    default: op
