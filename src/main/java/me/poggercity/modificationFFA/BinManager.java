@@ -33,7 +33,6 @@ final class BinManager implements Listener, AutoCloseable {
     private static final int DELETE_SLOT = 31;
     private static final long ANIMATION_PERIOD_TICKS = 1L;
     private static final int ANIMATION_FRAME_COUNT = 80;
-    private static final double GRADIENT_HALF_WIDTH = 3.5;
     private static final String DELETE_LABEL = "Delete Items";
     private static final int GRADIENT_PURPLE = 0xA000B8;
     private static final int GRADIENT_PINK = 0xE100A8;
@@ -216,15 +215,11 @@ final class BinManager implements Listener, AutoCloseable {
     }
 
     private double animationProgress(int phase, int character) {
-        int halfCycle = ANIMATION_FRAME_COUNT / 2;
-        double time = phase <= halfCycle
-                ? phase / (double) halfCycle
-                : (ANIMATION_FRAME_COUNT - phase) / (double) halfCycle;
-        double front = -GRADIENT_HALF_WIDTH
-                + (time * ((DELETE_LABEL.length() - 1) + (GRADIENT_HALF_WIDTH * 2.0)));
-        double blend = (front - character + GRADIENT_HALF_WIDTH) / (GRADIENT_HALF_WIDTH * 2.0);
-        blend = Math.max(0.0, Math.min(1.0, blend));
-        return blend * blend * (3.0 - (2.0 * blend));
+        double globalPhase = phase / (double) ANIMATION_FRAME_COUNT;
+        double characterPhase = character / (double) DELETE_LABEL.length();
+        double localPhase = characterPhase - globalPhase;
+        localPhase -= Math.floor(localPhase);
+        return 0.5 + (0.5 * Math.cos(localPhase * Math.PI * 2.0));
     }
 
     private TextColor gradientColor(double progress) {
