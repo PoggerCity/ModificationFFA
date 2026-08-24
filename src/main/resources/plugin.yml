@@ -52,9 +52,9 @@ commands:
     description: Manages ModificationFFA tokens.
     usage: /tokens give <player> <type> <amount>
     permission: modificationffa.tokens.admin
-  lumbertoken:
-    description: Creates regenerating lumber-token nodes.
-    usage: /lumbertoken give <player> <log_type>
+  woodtoken:
+    description: Creates regenerating wood-token nodes.
+    usage: /woodtoken give <player> <wood_type>
     permission: modificationffa.tokens.admin
   miningtoken:
     description: Creates regenerating mining-token nodes.

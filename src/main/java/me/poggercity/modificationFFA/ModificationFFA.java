@@ -113,7 +113,7 @@ public final class ModificationFFA extends JavaPlugin implements Listener {
             case "find" -> biomeManager.handleFind(sender, args);
             case "executioner" -> tokenManager.handleExecutioner(sender, args);
             case "tokens" -> tokenManager.handleTokens(sender, args);
-            case "lumbertoken" -> tokenManager.handleLumberToken(sender, args);
+            case "woodtoken" -> tokenManager.handleLumberToken(sender, args);
             case "miningtoken" -> tokenManager.handleMiningToken(sender, args);
             case "modification" -> handleModificationCommand(sender, args);
             default -> false;
@@ -145,7 +145,7 @@ public final class ModificationFFA extends JavaPlugin implements Listener {
         if (command.getName().equalsIgnoreCase("tokens")) {
             return tokenManager.tabCompleteTokens(sender, args);
         }
-        if (command.getName().equalsIgnoreCase("lumbertoken")) {
+        if (command.getName().equalsIgnoreCase("woodtoken")) {
             return tokenManager.tabCompleteLumberToken(sender, args);
         }
         if (command.getName().equalsIgnoreCase("miningtoken")) {

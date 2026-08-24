@@ -11,6 +11,7 @@ import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextColor;
 import net.kyori.adventure.text.format.TextDecoration;
 import org.bukkit.Bukkit;
+import org.bukkit.GameMode;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
@@ -247,13 +248,24 @@ final class TokenManager implements Listener, AutoCloseable {
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onBlockBreak(BlockBreakEvent event) {
+        NodeKey key = NodeKey.of(event.getBlock());
+        ResourceNode node = nodes.get(key);
+        if (node != null && event.getPlayer().getGameMode() == GameMode.CREATIVE) {
+            if (event.getPlayer().isSneaking()) {
+                nodes.remove(key);
+                markDirty();
+            } else {
+                event.setCancelled(true);
+                event.getPlayer().sendMessage(MessageStyle.prefixed("Shift click to delete it."));
+            }
+            return;
+        }
+
         if (isProtectedToolToken(event.getPlayer().getInventory().getItemInMainHand())) {
             event.setCancelled(true);
             return;
         }
 
-        NodeKey key = NodeKey.of(event.getBlock());
-        ResourceNode node = nodes.get(key);
         if (node == null) {
             return;
         }
@@ -853,7 +865,7 @@ final class TokenManager implements Listener, AutoCloseable {
     }
 
     private enum NodeKind {
-        LUMBER("L", "lumbertoken", "wood", TokenType.WOOD),
+        LUMBER("L", "woodtoken", "wood", TokenType.WOOD),
         MINING("M", "miningtoken", "ore", TokenType.MINING);
 
         private final String code;
