@@ -779,9 +779,9 @@ final class TokenManager implements Listener, AutoCloseable {
                 List.of("Trade this with the miner to get a kill token!", "You can find the miner at the mine shaft or temple."), "compressed_mining", "compressedmine"),
         COMPRESSED_WOOD(Material.STONE_AXE, "♧", "Compressed Wood Token", TextColor.color(0x865546), true,
                 List.of("Trade this with the lumberjack to get a kill token!", "You can find the lumberjack at the igloo."), "compressed_wood", "compressed_lumber"),
-        ENCHANTED_KILL(Material.BEACON, "♨", "Enchanted Kill Token", NamedTextColor.YELLOW, false,
+        ENCHANTED_KILL(Material.BEACON, "💰", "Enchanted Kill Token", NamedTextColor.YELLOW, false,
                 List.of(), "enchanted_kill", "enchanted"),
-        COMPRESSED_KILL(Material.SEA_LANTERN, "♨", "Compressed Kill Token", NamedTextColor.YELLOW, false,
+        COMPRESSED_KILL(Material.SEA_LANTERN, "💰", "Compressed Kill Token", NamedTextColor.YELLOW, false,
                 List.of(), "compressed_kill", "compressed");
 
         private final Material material;
