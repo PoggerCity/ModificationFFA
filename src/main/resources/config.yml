@@ -1,7 +1,7 @@
 # Link settings used by /discord, /store, and the automatic reminders.
 links:
-  discord: "https://discord.gg/modify"
-  store: "https://modifying.tebex.io/"
+  discord: "https://discord.gg/modification"
+  store: "https://modificationffa.tebex.io/"
 
 # Shared per-player cooldown between /discord and /store.
 commands:
