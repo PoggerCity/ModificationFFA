@@ -108,7 +108,7 @@ final class KitManager implements AutoCloseable {
 
     private void saveMainKit(Player player) {
         if (!player.hasPermission(ADMIN_PERMISSION)) {
-            player.sendMessage(MessageStyle.prefixed("You do not have permission to save the main kit."));
+            player.sendMessage(MessageStyle.permissionDenied(ADMIN_PERMISSION));
             return;
         }
         if (!canStartOperation(player)) {

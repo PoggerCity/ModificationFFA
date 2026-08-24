@@ -48,6 +48,10 @@ final class PlayerUtilityCommands {
 
         Player target;
         if (args.length == 0) {
+            if (!sender.hasPermission("modificationffa.clear")) {
+                sender.sendMessage(MessageStyle.permissionDenied("modificationffa.clear"));
+                return true;
+            }
             if (!(sender instanceof Player player)) {
                 sender.sendMessage(MessageStyle.prefixed("Usage: /clear <player>"));
                 return true;
@@ -55,7 +59,7 @@ final class PlayerUtilityCommands {
             target = player;
         } else {
             if (!sender.hasPermission("modificationffa.clear.others")) {
-                sender.sendMessage(MessageStyle.prefixed("You do not have permission to clear another player's inventory."));
+                sender.sendMessage(MessageStyle.permissionDenied("modificationffa.clear.others"));
                 return true;
             }
             target = Bukkit.getPlayerExact(args[0]);

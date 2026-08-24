@@ -30,7 +30,6 @@ commands:
   clear:
     description: Clears your inventory.
     usage: /clear [player]
-    permission: modificationffa.clear
   find:
     description: Finds an online player and their current biome region.
     usage: /find <player>
@@ -44,22 +43,39 @@ commands:
   biome:
     description: Creates and manages custom biome regions.
     usage: /biome help
-    permission: modificationffa.biome.admin
   executioner:
     description: Opens the Executioner Trader.
     usage: /executioner
   tokens:
     description: Manages ModificationFFA tokens.
     usage: /tokens give <player> <type> <amount>
-    permission: modificationffa.tokens.admin
   woodtoken:
     description: Creates regenerating wood-token nodes.
     usage: /woodtoken give <player> <wood_type>
-    permission: modificationffa.tokens.admin
   miningtoken:
     description: Creates regenerating mining-token nodes.
     usage: /miningtoken give <player> <ore_type>
-    permission: modificationffa.tokens.admin
+  spawn:
+    description: Teleports you to the server spawn after five seconds.
+    usage: /spawn
+  setspawn:
+    description: Sets the server spawn.
+    usage: /setspawn
+  combat:
+    description: Shows and manages combat tags.
+    usage: /combat [help|timer|tag|untag]
+  msg:
+    description: Sends a private message.
+    usage: /msg <player> <message>
+    aliases: [message, m, whisper, w, tell, pm]
+  reply:
+    description: Replies to your latest private message.
+    usage: /reply <message>
+    aliases: [r, apprend]
+  continue:
+    description: Continues your current private conversation.
+    usage: /continue <message>
+    aliases: [c, a]
 
 permissions:
   modificationffa.reload:
@@ -82,4 +98,13 @@ permissions:
     default: op
   modificationffa.tokens.admin:
     description: Allows giving tokens and regenerating resource nodes.
+    default: op
+  modificationffa.spawn.set:
+    description: Allows setting the server spawn.
+    default: op
+  modificationffa.command.combat.tag:
+    description: Allows force-tagging a player for combat.
+    default: op
+  modificationffa.command.combat.untag:
+    description: Allows removing a player's combat tag.
     default: op

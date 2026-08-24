@@ -16,6 +16,7 @@ import org.bukkit.scheduler.BukkitTask;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.List;
@@ -36,6 +37,9 @@ public final class ModificationFFA extends JavaPlugin implements Listener {
     private StatsManager statsManager;
     private BiomeManager biomeManager;
     private TokenManager tokenManager;
+    private SpawnManager spawnManager;
+    private CombatManager combatManager;
+    private SocialManager socialManager;
     private LinkMessages linkMessages;
     private BukkitTask reminderTask;
     private Sound reminderSound;
@@ -45,7 +49,9 @@ public final class ModificationFFA extends JavaPlugin implements Listener {
     @Override
     public void onEnable() {
         saveDefaultConfig();
-        saveResource("messages.json", false);
+        if (!Files.exists(getDataFolder().toPath().resolve("messages.json"))) {
+            saveResource("messages.json", false);
+        }
 
         try {
             applyConfiguration();
@@ -66,9 +72,17 @@ public final class ModificationFFA extends JavaPlugin implements Listener {
         biomeManager.start();
         tokenManager = new TokenManager(this);
         tokenManager.start();
+        spawnManager = new SpawnManager(this);
+        spawnManager.start();
+        combatManager = new CombatManager(this, statsManager, spawnManager);
+        combatManager.start();
+        socialManager = new SocialManager();
         getServer().getPluginManager().registerEvents(statsManager, this);
         getServer().getPluginManager().registerEvents(biomeManager, this);
         getServer().getPluginManager().registerEvents(tokenManager, this);
+        getServer().getPluginManager().registerEvents(spawnManager, this);
+        getServer().getPluginManager().registerEvents(combatManager, this);
+        getServer().getPluginManager().registerEvents(socialManager, this);
         getServer().getPluginManager().registerEvents(this, this);
         getLogger().info("ModificationFFA has been enabled.");
     }
@@ -82,6 +96,9 @@ public final class ModificationFFA extends JavaPlugin implements Listener {
         if (binManager != null) {
             binManager.close();
         }
+        if (combatManager != null) {
+            combatManager.close();
+        }
         if (statsManager != null) {
             statsManager.close();
         }
@@ -90,6 +107,12 @@ public final class ModificationFFA extends JavaPlugin implements Listener {
         }
         if (tokenManager != null) {
             tokenManager.close();
+        }
+        if (spawnManager != null) {
+            spawnManager.close();
+        }
+        if (socialManager != null) {
+            socialManager.close();
         }
         linkCommandUses.clear();
         getLogger().info("ModificationFFA has been disabled.");
@@ -115,6 +138,12 @@ public final class ModificationFFA extends JavaPlugin implements Listener {
             case "tokens" -> tokenManager.handleTokens(sender, args);
             case "woodtoken" -> tokenManager.handleLumberToken(sender, args);
             case "miningtoken" -> tokenManager.handleMiningToken(sender, args);
+            case "spawn" -> spawnManager.handleSpawn(sender, args);
+            case "setspawn" -> spawnManager.handleSetSpawn(sender, args);
+            case "combat" -> combatManager.handleCommand(sender, args);
+            case "msg" -> socialManager.handleMessage(sender, args);
+            case "reply" -> socialManager.handleReply(sender, args);
+            case "continue" -> socialManager.handleContinue(sender, args);
             case "modification" -> handleModificationCommand(sender, args);
             default -> false;
         };
@@ -150,6 +179,12 @@ public final class ModificationFFA extends JavaPlugin implements Listener {
         }
         if (command.getName().equalsIgnoreCase("miningtoken")) {
             return tokenManager.tabCompleteMiningToken(sender, args);
+        }
+        if (command.getName().equalsIgnoreCase("combat")) {
+            return combatManager.tabComplete(sender, args);
+        }
+        if (command.getName().equalsIgnoreCase("msg")) {
+            return socialManager.tabCompleteMessage(args);
         }
         if (command.getName().equalsIgnoreCase("modification") && args.length == 1) {
             List<String> available = sender.hasPermission("modificationffa.reload")
@@ -221,6 +256,12 @@ public final class ModificationFFA extends JavaPlugin implements Listener {
                     .append(Component.text(" - View player statistics.", NamedTextColor.GRAY)));
             sender.sendMessage(Component.text("/executioner", NamedTextColor.GREEN)
                     .append(Component.text(" - Open the Executioner Trader.", NamedTextColor.GRAY)));
+            sender.sendMessage(Component.text("/spawn", NamedTextColor.GREEN)
+                    .append(Component.text(" - Teleport to the server spawn.", NamedTextColor.GRAY)));
+            sender.sendMessage(Component.text("/combat", NamedTextColor.GREEN)
+                    .append(Component.text(" - View your combat status.", NamedTextColor.GRAY)));
+            sender.sendMessage(Component.text("/msg", NamedTextColor.GREEN)
+                    .append(Component.text(" - Send a private message.", NamedTextColor.GRAY)));
             if (sender.hasPermission("modificationffa.reload")) {
                 sender.sendMessage(Component.text("/modification reload", NamedTextColor.GREEN)
                         .append(Component.text(" - Reload config.yml and messages.json.", NamedTextColor.GRAY)));
@@ -234,7 +275,7 @@ public final class ModificationFFA extends JavaPlugin implements Listener {
 
     private boolean reloadPlugin(CommandSender sender) {
         if (!sender.hasPermission("modificationffa.reload")) {
-            sender.sendMessage(Component.text("You do not have permission to reload ModificationFFA.", NamedTextColor.RED));
+            sender.sendMessage(MessageStyle.permissionDenied("modificationffa.reload"));
             return true;
         }
 

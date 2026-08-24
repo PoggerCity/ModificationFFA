@@ -119,7 +119,7 @@ final class TokenManager implements Listener, AutoCloseable {
 
     boolean handleTokens(CommandSender sender, String[] args) {
         if (!sender.hasPermission(ADMIN_PERMISSION)) {
-            sender.sendMessage(MessageStyle.prefixed("You do not have permission to use this command."));
+            sender.sendMessage(MessageStyle.permissionDenied(ADMIN_PERMISSION));
             return true;
         }
         if (args.length != 4 || !args[0].equalsIgnoreCase("give")) {
@@ -384,7 +384,7 @@ final class TokenManager implements Listener, AutoCloseable {
 
     private boolean handleNodeGive(CommandSender sender, String[] args, NodeKind kind) {
         if (!sender.hasPermission(ADMIN_PERMISSION)) {
-            sender.sendMessage(MessageStyle.prefixed("You do not have permission to use this command."));
+            sender.sendMessage(MessageStyle.permissionDenied(ADMIN_PERMISSION));
             return true;
         }
         if (args.length < 3 || !args[0].equalsIgnoreCase("give")) {

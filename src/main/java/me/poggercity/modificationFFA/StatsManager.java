@@ -129,6 +129,15 @@ final class StatsManager implements Listener, AutoCloseable {
                 .toList();
     }
 
+    void recordCombatLogDeath(UUID playerId, String lastKnownName) {
+        PlayerStats value = stats.computeIfAbsent(playerId, ignored -> new PlayerStats(lastKnownName));
+        value.lastKnownName = lastKnownName;
+        value.deaths++;
+        value.killstreak = 0;
+        changed();
+        queueSave();
+    }
+
     @EventHandler
     public void onJoin(PlayerJoinEvent event) {
         updateName(event.getPlayer());

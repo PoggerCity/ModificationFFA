@@ -21,6 +21,13 @@ final class MessageStyle {
         return PREFIX;
     }
 
+    static Component permissionDenied(String permission) {
+        return PREFIX
+                .append(Component.text("You do not have permission ", NamedTextColor.GRAY))
+                .append(Component.text("(" + permission + ")", NamedTextColor.GREEN))
+                .append(Component.text(" to do that.", NamedTextColor.GRAY));
+    }
+
     private static Component createPrefix() {
         String text = "Modification FFA";
         String[] colors = {

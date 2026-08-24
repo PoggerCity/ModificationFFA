@@ -193,7 +193,7 @@ final class BiomeManager implements Listener, AutoCloseable {
 
         Player player = event.getPlayer();
         if (!player.hasPermission(ADMIN_PERMISSION)) {
-            player.sendMessage(MessageStyle.prefixed("You do not have permission to use the biome wand."));
+            player.sendMessage(MessageStyle.permissionDenied(ADMIN_PERMISSION));
             return;
         }
 
@@ -376,7 +376,7 @@ final class BiomeManager implements Listener, AutoCloseable {
         if (sender.hasPermission(ADMIN_PERMISSION)) {
             return true;
         }
-        sender.sendMessage(MessageStyle.prefixed("You do not have permission to manage custom biomes."));
+        sender.sendMessage(MessageStyle.permissionDenied(ADMIN_PERMISSION));
         return false;
     }
 
