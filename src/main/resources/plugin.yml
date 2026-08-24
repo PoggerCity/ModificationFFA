@@ -27,6 +27,10 @@ commands:
     description: Opens the Modification Bin.
     usage: /bin
     aliases: [trash]
+  clear:
+    description: Clears your inventory.
+    usage: /clear
+    permission: modificationffa.clear
 
 permissions:
   modificationffa.reload:
@@ -38,3 +42,6 @@ permissions:
   modificationffa.kit.admin:
     description: Allows saving the authoritative main kit.
     default: op
+  modificationffa.clear:
+    description: Allows clearing your own inventory.
+    default: true

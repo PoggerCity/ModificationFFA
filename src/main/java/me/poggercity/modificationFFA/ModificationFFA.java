@@ -84,6 +84,7 @@ public final class ModificationFFA extends JavaPlugin implements Listener {
             case "store" -> sendLinkCommand(sender, linkMessages.store());
             case "kit" -> kitManager.handleCommand(sender, args);
             case "bin" -> binManager.open(sender);
+            case "clear" -> clearInventory(sender, args);
             case "modification" -> handleModificationCommand(sender, args);
             default -> false;
         };
@@ -159,6 +160,8 @@ public final class ModificationFFA extends JavaPlugin implements Listener {
                     .append(Component.text(" - View the store link.", NamedTextColor.GRAY)));
             sender.sendMessage(Component.text("/bin", NamedTextColor.GREEN)
                     .append(Component.text(" - Open the Modification Bin.", NamedTextColor.GRAY)));
+            sender.sendMessage(Component.text("/clear", NamedTextColor.GREEN)
+                    .append(Component.text(" - Clear your inventory.", NamedTextColor.GRAY)));
             if (sender.hasPermission("modificationffa.reload")) {
                 sender.sendMessage(Component.text("/modification reload", NamedTextColor.GREEN)
                         .append(Component.text(" - Reload config.yml and messages.json.", NamedTextColor.GRAY)));
@@ -185,6 +188,22 @@ public final class ModificationFFA extends JavaPlugin implements Listener {
             getLogger().warning("Could not reload ModificationFFA configuration: " + exception.getMessage());
             sender.sendMessage(Component.text("Reload failed. Check the console for details.", NamedTextColor.RED));
         }
+        return true;
+    }
+
+    private boolean clearInventory(CommandSender sender, String[] args) {
+        if (args.length > 0) {
+            sender.sendMessage(MessageStyle.prefixed("Usage: /clear"));
+            return true;
+        }
+        if (!(sender instanceof Player player)) {
+            sender.sendMessage(MessageStyle.prefixed("This command can only be used by players."));
+            return true;
+        }
+
+        player.getInventory().clear();
+        player.updateInventory();
+        player.sendMessage(MessageStyle.prefixed("You have cleared your inventory."));
         return true;
     }
 
