@@ -65,9 +65,10 @@ final class CombatManager implements Listener, AutoCloseable {
 
     private static final long COMBAT_MILLIS = 60_000L;
     private static final long SAVE_PERIOD_TICKS = 20L * 5L;
+    private static final int COMMAND_WHITELIST_VERSION = 2;
     private static final Set<String> DEFAULT_COMMAND_WHITELIST = Set.of(
             "msg", "message", "m", "whisper", "w", "tell", "pm", "reply", "r",
-            "apprend", "continue", "c", "a", "combat");
+            "apprend", "continue", "c", "a", "combat", "sword");
 
     private final JavaPlugin plugin;
     private final StatsManager statsManager;
@@ -779,6 +780,7 @@ final class CombatManager implements Listener, AutoCloseable {
         combatOpponents.forEach((uuid, opponent) -> result.opponents.put(uuid.toString(), opponent.toString()));
         loggerSessions.forEach((uuid, session) -> result.sessions.put(uuid.toString(), session.copy()));
         result.commandWhitelist = new ArrayList<>(commandWhitelist);
+        result.commandWhitelistVersion = COMMAND_WHITELIST_VERSION;
         return result;
     }
 
@@ -829,6 +831,9 @@ final class CombatManager implements Listener, AutoCloseable {
                         .filter(this::validRootCommand)
                         .forEach(commandWhitelist::add);
                 commandWhitelist.add("combat");
+                if (stored.commandWhitelistVersion < COMMAND_WHITELIST_VERSION) {
+                    commandWhitelist.add("sword");
+                }
             }
         } catch (IOException | RuntimeException exception) {
             plugin.getLogger().warning("Could not load combat.json: " + exception.getMessage());
@@ -894,6 +899,7 @@ final class CombatManager implements Listener, AutoCloseable {
         private Map<String, String> opponents = new LinkedHashMap<>();
         private Map<String, LoggerSession> sessions = new LinkedHashMap<>();
         private List<String> commandWhitelist;
+        private int commandWhitelistVersion;
     }
 
     private static final class LoggerSession {

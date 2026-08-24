@@ -76,6 +76,9 @@ commands:
     description: Continues your current private conversation.
     usage: /continue <message>
     aliases: [c, a]
+  sword:
+    description: Shows and uses Modification sword abilities.
+    usage: /sword help
 
 permissions:
   modificationffa.reload:
@@ -113,4 +116,10 @@ permissions:
     default: op
   combat.command.bypass:
     description: Allows using all commands while in combat.
+    default: op
+  modificationffa.sword.ability:
+    description: Allows activating Modification sword abilities.
+    default: true
+  modificationffa.sword.give:
+    description: Allows giving Modification swords to players.
     default: op

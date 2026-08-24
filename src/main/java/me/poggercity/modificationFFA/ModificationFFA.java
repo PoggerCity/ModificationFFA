@@ -40,6 +40,7 @@ public final class ModificationFFA extends JavaPlugin implements Listener {
     private SpawnManager spawnManager;
     private CombatManager combatManager;
     private SocialManager socialManager;
+    private SwordManager swordManager;
     private LinkMessages linkMessages;
     private BukkitTask reminderTask;
     private Sound reminderSound;
@@ -77,6 +78,8 @@ public final class ModificationFFA extends JavaPlugin implements Listener {
         combatManager = new CombatManager(this, statsManager, spawnManager, tokenManager);
         combatManager.start();
         socialManager = new SocialManager();
+        swordManager = new SwordManager(this);
+        swordManager.start();
         getServer().getPluginManager().registerEvents(statsManager, this);
         getServer().getPluginManager().registerEvents(biomeManager, this);
         getServer().getPluginManager().registerEvents(tokenManager, this);
@@ -114,6 +117,9 @@ public final class ModificationFFA extends JavaPlugin implements Listener {
         if (socialManager != null) {
             socialManager.close();
         }
+        if (swordManager != null) {
+            swordManager.close();
+        }
         linkCommandUses.clear();
         getLogger().info("ModificationFFA has been disabled.");
     }
@@ -144,6 +150,7 @@ public final class ModificationFFA extends JavaPlugin implements Listener {
             case "msg" -> socialManager.handleMessage(sender, args);
             case "reply" -> socialManager.handleReply(sender, args);
             case "continue" -> socialManager.handleContinue(sender, args);
+            case "sword" -> swordManager.handleCommand(sender, args);
             case "modification" -> handleModificationCommand(sender, args);
             default -> false;
         };
@@ -185,6 +192,9 @@ public final class ModificationFFA extends JavaPlugin implements Listener {
         }
         if (command.getName().equalsIgnoreCase("msg")) {
             return socialManager.tabCompleteMessage(args);
+        }
+        if (command.getName().equalsIgnoreCase("sword")) {
+            return swordManager.tabComplete(sender, args);
         }
         if (command.getName().equalsIgnoreCase("modification") && args.length == 1) {
             List<String> available = sender.hasPermission("modificationffa.reload")
@@ -256,6 +266,8 @@ public final class ModificationFFA extends JavaPlugin implements Listener {
                     .append(Component.text(" - View player statistics.", NamedTextColor.GRAY)));
             sender.sendMessage(Component.text("/executioner", NamedTextColor.GREEN)
                     .append(Component.text(" - Open the Executioner Trader.", NamedTextColor.GRAY)));
+            sender.sendMessage(Component.text("/sword", NamedTextColor.GREEN)
+                    .append(Component.text(" - View and use Modification swords.", NamedTextColor.GRAY)));
             sender.sendMessage(Component.text("/spawn", NamedTextColor.GREEN)
                     .append(Component.text(" - Teleport to the server spawn.", NamedTextColor.GRAY)));
             sender.sendMessage(Component.text("/combat", NamedTextColor.GREEN)
