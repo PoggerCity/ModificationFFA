@@ -450,13 +450,19 @@ final class TokenManager implements Listener, AutoCloseable {
             item.setData(DataComponentTypes.ENCHANTMENT_GLINT_OVERRIDE, true);
         }
         ItemMeta meta = item.getItemMeta();
-        Component name = Component.text(type.icon + " " + type.displayName, type.color)
-                .decoration(TextDecoration.BOLD, type.bold)
+        Component name = Component.empty()
+                .append(Component.text(type.icon, type.color)
+                        .decoration(TextDecoration.BOLD, false))
+                .append(Component.space())
+                .append(Component.text(type.displayName, type.color)
+                        .decoration(TextDecoration.BOLD, true))
                 .decoration(TextDecoration.ITALIC, false);
         meta.displayName(name);
-        meta.lore(type.lore.stream()
-                .map(line -> Component.text(line, NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false))
-                .toList());
+        if (!type.lore.isEmpty()) {
+            meta.lore(type.lore.stream()
+                    .map(line -> Component.text(line, NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false))
+                    .toList());
+        }
         meta.getPersistentDataContainer().set(tokenKey, PersistentDataType.STRING, type.name());
         meta.addItemFlags(ItemFlag.HIDE_ATTRIBUTES);
         item.setItemMeta(meta);
@@ -761,39 +767,37 @@ final class TokenManager implements Listener, AutoCloseable {
     }
 
     private enum TokenType {
-        KILL(Material.GOLDEN_SWORD, "⚔", "KILL Token", NamedTextColor.YELLOW, true, true,
-                List.of("A token earned by defeating another player."), "kill"),
-        MINING(Material.WOODEN_PICKAXE, "⛏", "Mining Token", NamedTextColor.GRAY, false, true,
+        KILL(Material.NETHER_STAR, "🗡", "KILL Token", NamedTextColor.YELLOW, true,
+                List.of(), "kill"),
+        MINING(Material.WOODEN_PICKAXE, "⛏", "Mining Token", NamedTextColor.GRAY, true,
                 List.of("Trade this with the miner to get a kill token!", "You can find the miner at the mine shaft or temple."), "mining", "mine"),
-        WOOD(Material.WOODEN_AXE, "♧", "Wood Token", TextColor.color(0x865546), false, true,
+        WOOD(Material.WOODEN_AXE, "♧", "Wood Token", TextColor.color(0x865546), true,
                 List.of("Trade this with the lumberjack to get a kill token!", "You can find the lumberjack at the igloo."), "wood", "lumber"),
-        AFK(Material.CLOCK, "♨", "AFK Token", TextColor.color(0x72BFC8), false, false,
-                List.of("An AFK reward token."), "afk"),
-        COMPRESSED_MINING(Material.STONE_PICKAXE, "⛏", "Compressed Mining Token", NamedTextColor.GRAY, false, true,
+        AFK(Material.CLOCK, "☁", "AFK Token", TextColor.color(0x72BFC8), false,
+                List.of(), "afk"),
+        COMPRESSED_MINING(Material.STONE_PICKAXE, "⛏", "Compressed Mining Token", NamedTextColor.GRAY, true,
                 List.of("Trade this with the miner to get a kill token!", "You can find the miner at the mine shaft or temple."), "compressed_mining", "compressedmine"),
-        COMPRESSED_WOOD(Material.STONE_AXE, "♧", "Compressed Wood Token", TextColor.color(0x865546), false, true,
+        COMPRESSED_WOOD(Material.STONE_AXE, "♧", "Compressed Wood Token", TextColor.color(0x865546), true,
                 List.of("Trade this with the lumberjack to get a kill token!", "You can find the lumberjack at the igloo."), "compressed_wood", "compressed_lumber"),
-        ENCHANTED_KILL(Material.BEACON, "♨", "Enchanted Kill Token", NamedTextColor.YELLOW, true, false,
-                List.of("An enchanted bundle of kill tokens."), "enchanted_kill", "enchanted"),
-        COMPRESSED_KILL(Material.SEA_LANTERN, "♨", "Compressed Kill Token", NamedTextColor.YELLOW, true, false,
-                List.of("A compressed bundle of kill tokens."), "compressed_kill", "compressed");
+        ENCHANTED_KILL(Material.BEACON, "♨", "Enchanted Kill Token", NamedTextColor.YELLOW, false,
+                List.of(), "enchanted_kill", "enchanted"),
+        COMPRESSED_KILL(Material.SEA_LANTERN, "♨", "Compressed Kill Token", NamedTextColor.YELLOW, false,
+                List.of(), "compressed_kill", "compressed");
 
         private final Material material;
         private final String icon;
         private final String displayName;
         private final TextColor color;
-        private final boolean bold;
         private final boolean forceStackable;
         private final List<String> lore;
         private final Set<String> aliases;
 
-        TokenType(Material material, String icon, String displayName, TextColor color, boolean bold,
+        TokenType(Material material, String icon, String displayName, TextColor color,
                   boolean forceStackable, List<String> lore, String... aliases) {
             this.material = material;
             this.icon = icon;
             this.displayName = displayName;
             this.color = color;
-            this.bold = bold;
             this.forceStackable = forceStackable;
             this.lore = lore;
             this.aliases = Set.of(aliases);
