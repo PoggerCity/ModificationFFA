@@ -33,6 +33,7 @@ final class BinManager implements Listener, AutoCloseable {
     private static final int DELETE_SLOT = 31;
     private static final long ANIMATION_PERIOD_TICKS = 1L;
     private static final int ANIMATION_FRAME_COUNT = 120;
+    private static final double GRADIENT_TEXT_SPAN = 0.72D;
     private static final String DELETE_LABEL = "Delete Items";
     private static final int GRADIENT_PURPLE = 0xA000B8;
     private static final int GRADIENT_DEEP_PINK = 0xC000B4;
@@ -220,7 +221,8 @@ final class BinManager implements Listener, AutoCloseable {
 
     private double animationProgress(int phase, int character) {
         double globalPhase = phase / (double) ANIMATION_FRAME_COUNT;
-        double characterPhase = character / (double) DELETE_LABEL.length();
+        double characterPhase = (character / (double) Math.max(1, DELETE_LABEL.length() - 1))
+                * GRADIENT_TEXT_SPAN;
         double localPhase = characterPhase - globalPhase;
         localPhase -= Math.floor(localPhase);
         return 0.5 + (0.5 * Math.cos(localPhase * Math.PI * 2.0));
@@ -229,7 +231,7 @@ final class BinManager implements Listener, AutoCloseable {
     private TextColor gradientColor(double progress) {
         double scaled = Math.max(0.0, Math.min(1.0, progress)) * (GRADIENT_STOPS.length - 1);
         int lowerIndex = Math.min((int) scaled, GRADIENT_STOPS.length - 2);
-        double blend = scaled - lowerIndex;
+        double blend = smootherStep(scaled - lowerIndex);
 
         int lower = GRADIENT_STOPS[lowerIndex];
         int upper = GRADIENT_STOPS[lowerIndex + 1];
@@ -241,6 +243,10 @@ final class BinManager implements Listener, AutoCloseable {
 
     private int interpolateChannel(int from, int to, double blend) {
         return (int) Math.round((from & 0xFF) + (((to & 0xFF) - (from & 0xFF)) * blend));
+    }
+
+    private double smootherStep(double amount) {
+        return amount * amount * amount * (amount * ((amount * 6.0D) - 15.0D) + 10.0D);
     }
 
     private ItemStack createFiller() {
