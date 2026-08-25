@@ -70,7 +70,7 @@ final class SwordManager implements Listener, AutoCloseable {
     private static final int PROTECTION_COOLDOWN_TICKS = 60 * 20;
     private static final int EXPLOSION_COOLDOWN_TICKS = 40 * 20;
     private static final int PROTECTION_DURATION_TICKS = 15 * 20;
-    private static final int RECENT_ATTACKER_TICKS = 15 * 20;
+    private static final int RECENT_ATTACKER_TICKS = 10 * 20;
     private static final int DAMAGE_WINDOW_TICKS = 10;
     private static final int EXECUTIONER_HIT_TICKS = 10 * 20;
     private static final int COBWEB_LOCK_TICKS = 5 * 20;
@@ -210,8 +210,7 @@ final class SwordManager implements Listener, AutoCloseable {
         if (applyProtection(victim, event)) {
             return;
         }
-        SwordType heldType = swordType(victim.getInventory().getItemInMainHand());
-        if (heldType == SwordType.RESISTANCE) {
+        if (hasWeaponInHotbar(victim, SwordType.RESISTANCE)) {
             int attackers = recentAttackerCount(victim);
             double resistance = Math.min(1.0D, Math.max(0, attackers - 1) * 0.05D);
             if (resistance > 0.0D) {
@@ -729,7 +728,7 @@ final class SwordManager implements Listener, AutoCloseable {
                     grayLore("Sharpness V"),
                     grayLore("Efficiency V"),
                     grayLore("Protects you against a certain amount of"),
-                    grayLore("hits, scaling by the amount of recent attackers"),
+                    grayLore("hits, scaling by the amount recent attackers"),
                     Component.text("or for ", NamedTextColor.GRAY)
                             .append(Component.text("15 seconds", NamedTextColor.GREEN))
                             .append(Component.text(".", NamedTextColor.GRAY))
@@ -740,6 +739,19 @@ final class SwordManager implements Listener, AutoCloseable {
                             .append(Component.text("/sword ability", NamedTextColor.GREEN))
                             .append(Component.text(" while holding the axe.", NamedTextColor.GRAY))
                             .decoration(TextDecoration.ITALIC, false)
+            );
+        }
+        if (type == SwordType.RESISTANCE) {
+            return List.of(
+                    grayLore("Sharpness V"),
+                    grayLore("Efficiency V"),
+                    grayLore("Gain damage reduction per additional attacker in"),
+                    Component.text("the last ", NamedTextColor.GRAY)
+                            .append(Component.text("10", NamedTextColor.GREEN))
+                            .append(Component.text(" seconds.", NamedTextColor.GRAY))
+                            .decoration(TextDecoration.ITALIC, false),
+                    Component.empty(),
+                    grayLore("Axe must be in the hotbar to work.")
             );
         }
         if (type == SwordType.EXPLOSION) {
@@ -918,6 +930,15 @@ final class SwordManager implements Listener, AutoCloseable {
             return 0;
         }
         return attackers.size();
+    }
+
+    private boolean hasWeaponInHotbar(Player player, SwordType type) {
+        for (int slot = 0; slot < 9; slot++) {
+            if (swordType(player.getInventory().getItem(slot)) == type) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private boolean applyProtection(Player victim, EntityDamageByEntityEvent event) {
@@ -1107,7 +1128,7 @@ final class SwordManager implements Listener, AutoCloseable {
                 "Sharpness V",
                 "Efficiency V",
                 "Protects you against a certain amount of",
-                "hits, scaling by the amount of recent attackers",
+                "hits, scaling by the amount recent attackers",
                 "or for 15 seconds.",
                 "",
                 "Can be activated shift right clicking or by",
@@ -1117,8 +1138,10 @@ final class SwordManager implements Listener, AutoCloseable {
                 Material.NETHERITE_AXE, null, false, "", List.of(
                 "Sharpness V",
                 "Efficiency V",
-                "Passively reduces damage based on recent attackers.",
-                "1 attacker: 0%, 2: 5%, 3: 10%, and so on."
+                "Gain damage reduction per additional attacker in",
+                "the last 10 seconds.",
+                "",
+                "Axe must be in the hotbar to work."
         )),
         EXPLOSION("explosion", "💥", "Axe of Explosion", NamedTextColor.DARK_RED,
                 Material.NETHERITE_AXE, null, false, "", List.of(
