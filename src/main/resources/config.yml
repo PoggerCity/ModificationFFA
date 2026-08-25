@@ -1,20 +1,38 @@
-# Link settings used by /discord, /store, and the automatic reminders.
+branding:
+  name: "Modification FFA"
+  menu-name: "Modification"
+  command-aliases:
+    - "m"
+    - "p"
+
+colors:
+  primary: "#8C00C3"
+  accent: "#55FF55"
+  text: "#AAAAAA"
+  muted: "#555555"
+  error: "#FF5555"
+  prefix-gradient:
+    - "#8300C3"
+    - "#8E00C3"
+  gradient:
+    - "#A000B8"
+    - "#C000B4"
+    - "#E100A8"
+    - "#F34C68"
+    - "#FF9200"
+    - "#FFD21A"
+
 links:
   discord: "https://discord.gg/modification"
   store: "https://modificationffa.tebex.io/"
 
-# Shared per-player cooldown between /discord and /store.
 commands:
   cooldown-seconds: 3
 
 reminders:
   enabled: true
-
-  # One reminder is sent at each interval. Discord and store alternate, so they
-  # stay five minutes apart and each individual reminder repeats every 10 minutes.
   spacing-minutes: 5
   first: "discord"
-
   sound:
     enabled: false
     key: "minecraft:block.note_block.pling"

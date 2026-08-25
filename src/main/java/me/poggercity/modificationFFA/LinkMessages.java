@@ -7,7 +7,7 @@ import com.google.gson.JsonParser;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.event.ClickEvent;
 import net.kyori.adventure.text.event.HoverEvent;
-import net.kyori.adventure.text.format.NamedTextColor;
+import net.kyori.adventure.text.format.TextColor;
 import net.kyori.adventure.text.format.TextDecoration;
 
 import java.io.IOException;
@@ -22,7 +22,8 @@ import java.util.List;
 
 public record LinkMessages(List<Component> discord, List<Component> store, String cooldown) {
 
-    public static LinkMessages load(Path path, String discordUrl, String storeUrl) throws IOException {
+    public static LinkMessages load(Path path, String discordUrl, String storeUrl,
+                                    TextColor textColor, TextColor accentColor) throws IOException {
         JsonObject root;
         try (Reader reader = Files.newBufferedReader(path, StandardCharsets.UTF_8)) {
             root = JsonParser.parseReader(reader).getAsJsonObject();
@@ -30,12 +31,15 @@ public record LinkMessages(List<Component> discord, List<Component> store, Strin
 
         String separator = requiredString(root, "separator");
         String cooldown = requiredString(root, "cooldown");
-        List<Component> discord = buildMessage(root.getAsJsonObject("discord"), separator, discordUrl);
-        List<Component> store = buildMessage(root.getAsJsonObject("store"), separator, storeUrl);
+        List<Component> discord = buildMessage(
+                root.getAsJsonObject("discord"), separator, discordUrl, textColor, accentColor);
+        List<Component> store = buildMessage(
+                root.getAsJsonObject("store"), separator, storeUrl, textColor, accentColor);
         return new LinkMessages(discord, store, cooldown);
     }
 
-    private static List<Component> buildMessage(JsonObject template, String separator, String url) {
+    private static List<Component> buildMessage(JsonObject template, String separator, String url,
+                                                TextColor textColor, TextColor accentColor) {
         if (template == null) {
             throw new IllegalArgumentException("A message template is missing from messages.json.");
         }
@@ -47,19 +51,19 @@ public record LinkMessages(List<Component> discord, List<Component> store, Strin
         }
 
         List<Component> result = new ArrayList<>();
-        result.add(Component.text(separator, NamedTextColor.GRAY).decorate(TextDecoration.STRIKETHROUGH));
+        result.add(Component.text(separator, textColor).decorate(TextDecoration.STRIKETHROUGH));
         for (JsonElement line : lines) {
-            result.add(Component.text(line.getAsString(), NamedTextColor.GRAY));
+            result.add(Component.text(line.getAsString(), textColor));
         }
         result.add(Component.empty());
 
         String label = requiredString(template, "linkLabel");
         String hoverText = requiredString(template, "hoverText");
-        Component link = Component.text(url, NamedTextColor.GREEN)
+        Component link = Component.text(url, accentColor)
                 .clickEvent(ClickEvent.openUrl(url))
-                .hoverEvent(HoverEvent.showText(Component.text(hoverText, NamedTextColor.GREEN)));
-        result.add(Component.text(label, NamedTextColor.GRAY).append(link));
-        result.add(Component.text(separator, NamedTextColor.GRAY).decorate(TextDecoration.STRIKETHROUGH));
+                .hoverEvent(HoverEvent.showText(Component.text(hoverText, accentColor)));
+        result.add(Component.text(label, textColor).append(link));
+        result.add(Component.text(separator, textColor).decorate(TextDecoration.STRIKETHROUGH));
         return List.copyOf(result);
     }
 

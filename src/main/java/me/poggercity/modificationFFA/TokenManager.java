@@ -86,7 +86,7 @@ final class TokenManager implements Listener, AutoCloseable {
     private final Map<KillPair, Long> killCooldowns = new HashMap<>();
     private final Map<TokenType, ItemStack> tokenTemplates;
     private final Set<Inventory> executionerInventories = new HashSet<>();
-    private final List<ItemStack> executionerFrames;
+    private List<ItemStack> executionerFrames;
     private final ItemStack executionerFiller;
 
     private BukkitTask animationTask;
@@ -112,6 +112,10 @@ final class TokenManager implements Listener, AutoCloseable {
         loadState();
         animationTask = Bukkit.getScheduler().runTaskTimer(plugin, this::animateExecutioners, 1L, 1L);
         regenerationTask = Bukkit.getScheduler().runTaskTimer(plugin, this::regenerateNodes, 20L, 20L);
+    }
+
+    void refreshTheme() {
+        executionerFrames = createExecutionerFrames();
     }
 
     boolean handleTokens(CommandSender sender, String[] args) {
@@ -152,7 +156,8 @@ final class TokenManager implements Listener, AutoCloseable {
 
         ExecutionerHolder holder = new ExecutionerHolder();
         Inventory inventory = Bukkit.createInventory(holder, EXECUTIONER_SIZE,
-                Component.text("Executioner Trader", TextColor.color(0xA000B8)));
+                Component.text("Executioner Trader", PluginTheme.primary())
+                        .decoration(TextDecoration.ITALIC, false));
         holder.inventory = inventory;
         for (int slot = 0; slot < inventory.getSize(); slot++) {
             inventory.setItem(slot, slot == EXECUTIONER_SLOT

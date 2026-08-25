@@ -1,8 +1,6 @@
 package me.poggercity.modificationFFA;
 
 import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.format.NamedTextColor;
-import net.kyori.adventure.text.format.TextColor;
 import net.kyori.adventure.text.format.TextDecoration;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
@@ -34,11 +32,10 @@ final class BinManager implements Listener, AutoCloseable {
     private static final long ANIMATION_PERIOD_TICKS = 1L;
     private static final int ANIMATION_FRAME_COUNT = 120;
     private static final String DELETE_LABEL = "Delete Items";
-    private static final int GRADIENT_PURPLE = 0xA000B8;
 
     private final ModificationFFA plugin;
     private final Map<UUID, BinHolder> openBins = new HashMap<>();
-    private final List<ItemStack> deleteFrames;
+    private List<ItemStack> deleteFrames;
     private final ItemStack filler;
 
     private BukkitTask animationTask;
@@ -60,9 +57,13 @@ final class BinManager implements Listener, AutoCloseable {
         );
     }
 
+    void refreshTheme() {
+        deleteFrames = createDeleteFrames();
+    }
+
     boolean open(CommandSender sender) {
         if (!(sender instanceof Player player)) {
-            sender.sendMessage(Component.text("This command can only be used by players.", NamedTextColor.GRAY));
+            sender.sendMessage(Component.text("This command can only be used by players.", MessageStyle.text()));
             return true;
         }
 
@@ -74,7 +75,8 @@ final class BinManager implements Listener, AutoCloseable {
         Inventory inventory = Bukkit.createInventory(
                 holder,
                 INVENTORY_SIZE,
-                Component.text("Modification Bin", TextColor.color(GRADIENT_PURPLE))
+                Component.text(PluginTheme.menuName() + " Bin", PluginTheme.primary())
+                        .decoration(TextDecoration.ITALIC, false)
         );
         holder.setInventory(inventory);
 

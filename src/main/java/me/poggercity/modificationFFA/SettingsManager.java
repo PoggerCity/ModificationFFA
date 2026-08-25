@@ -128,6 +128,10 @@ final class SettingsManager implements Listener, AutoCloseable {
         return true;
     }
 
+    void refreshTheme() {
+        animatedNameFrames.clear();
+    }
+
     boolean broadcastTitlesEnabled(Player player) {
         return permittedAndEnabled(player, BROADCAST_PERMISSION,
                 value(player.getUniqueId()).broadcastTitles, true);
@@ -397,7 +401,7 @@ final class SettingsManager implements Listener, AutoCloseable {
     private void openPage(Player player, int page) {
         SettingsHolder holder = new SettingsHolder(player.getUniqueId(), page);
         Inventory inventory = Bukkit.createInventory(holder, GUI_SIZE,
-                Component.text("Modification Settings", NamedTextColor.DARK_PURPLE)
+                Component.text(PluginTheme.menuName() + " Settings", PluginTheme.primary())
                         .decoration(TextDecoration.ITALIC, false));
         holder.inventory = inventory;
 

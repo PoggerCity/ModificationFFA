@@ -10,10 +10,6 @@ loadbefore: [PlayerKits2]
 authors: [PoggerCity]
 
 commands:
-  modification:
-    description: Shows information about ModificationFFA.
-    usage: /modification
-    aliases: [modificationffa, modify]
   discord:
     description: Shows the server Discord link.
     usage: /discord

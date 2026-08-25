@@ -45,8 +45,8 @@ final class MergeManager implements Listener, AutoCloseable {
             Material.GREEN_STAINED_GLASS_PANE, "Confirm Bow Merge");
     private final ItemStack output = createPane(
             Material.WHITE_STAINED_GLASS_PANE, "Merged Punch Bow");
-    private final List<Component> confirmNameFrames;
-    private final List<Component> outputNameFrames;
+    private List<Component> confirmNameFrames;
+    private List<Component> outputNameFrames;
 
     private BukkitTask animationTask;
     private int animationFrame;
@@ -64,6 +64,11 @@ final class MergeManager implements Listener, AutoCloseable {
                 plugin, this::animateOpenMergers, 1L, 1L);
     }
 
+    void refreshTheme() {
+        confirmNameFrames = createAnimatedFrames("Confirm Bow Merge");
+        outputNameFrames = createAnimatedFrames("Merged Punch Bow");
+    }
+
     boolean open(CommandSender sender) {
         if (!(sender instanceof Player player)) {
             sender.sendMessage(MessageStyle.prefixed("This command can only be used by players."));
@@ -78,7 +83,7 @@ final class MergeManager implements Listener, AutoCloseable {
         Inventory inventory = Bukkit.createInventory(
                 holder,
                 INVENTORY_SIZE,
-                Component.text("Punch Bow Merger", NamedTextColor.DARK_PURPLE)
+                Component.text("Punch Bow Merger", PluginTheme.primary())
                         .decoration(TextDecoration.ITALIC, false)
         );
         holder.setInventory(inventory);
