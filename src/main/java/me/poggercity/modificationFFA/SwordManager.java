@@ -33,12 +33,14 @@ import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
+import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemFlag;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.meta.ItemMeta;
+import org.bukkit.inventory.meta.Damageable;
 import org.bukkit.inventory.meta.SkullMeta;
 import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.util.Vector;
@@ -82,6 +84,8 @@ final class SwordManager implements Listener, AutoCloseable {
             "excavator", PUNCH_BOW_ID);
 
     private final ModificationFFA plugin;
+    private final SettingsManager settingsManager;
+    private final TokenManager tokenManager;
     private final NamespacedKey swordTypeKey;
     private final NamespacedKey executionerKillsKey;
     private final NamespacedKey executionerIdKey;
@@ -92,8 +96,10 @@ final class SwordManager implements Listener, AutoCloseable {
     private final Map<UUID, ExplosionKnockback> pendingExplosionKnockbacks = new HashMap<>();
     private final Set<UUID> excavatingPlayers = new HashSet<>();
 
-    SwordManager(ModificationFFA plugin) {
+    SwordManager(ModificationFFA plugin, SettingsManager settingsManager, TokenManager tokenManager) {
         this.plugin = plugin;
+        this.settingsManager = settingsManager;
+        this.tokenManager = tokenManager;
         this.swordTypeKey = new NamespacedKey(plugin, "sword_type");
         this.executionerKillsKey = new NamespacedKey(plugin, "executioner_kills");
         this.executionerIdKey = new NamespacedKey(plugin, "executioner_id");
@@ -299,6 +305,14 @@ final class SwordManager implements Listener, AutoCloseable {
             return;
         }
         SwordType type = swordType(event.getPlayer().getInventory().getItemInMainHand());
+        if (type == SwordType.PROTECTION
+                && !settingsManager.protectionShiftClickEnabled(event.getPlayer())) {
+            return;
+        }
+        if (type == SwordType.EXPLOSION
+                && !settingsManager.explosionShiftClickEnabled(event.getPlayer())) {
+            return;
+        }
         if (type == SwordType.DASH || type == SwordType.PROTECTION
                 || type == SwordType.EXPLOSION) {
             event.setUseInteractedBlock(Event.Result.DENY);
@@ -353,11 +367,32 @@ final class SwordManager implements Listener, AutoCloseable {
             return;
         }
 
+        if (settingsManager.executionerTokenEnabled(killer)) {
+            tokenManager.giveExecutionerToken(killer);
+            return;
+        }
+
         ItemStack head = new ItemStack(Material.PLAYER_HEAD);
         SkullMeta meta = (SkullMeta) head.getItemMeta();
         meta.setOwningPlayer(event.getPlayer());
         head.setItemMeta(meta);
         event.getDrops().add(head);
+    }
+
+    @EventHandler
+    public void onJoin(PlayerJoinEvent event) {
+        UUID playerId = event.getPlayer().getUniqueId();
+        Bukkit.getScheduler().runTask(plugin, () -> {
+            Player player = Bukkit.getPlayer(playerId);
+            if (player == null || !player.isOnline()) {
+                return;
+            }
+            for (ItemStack item : player.getInventory().getContents()) {
+                if (!isPunchBow(item)) {
+                    swordType(item);
+                }
+            }
+        });
     }
 
     @EventHandler
@@ -463,6 +498,7 @@ final class SwordManager implements Listener, AutoCloseable {
         ItemStack sword = new ItemStack(type.material);
         ItemMeta meta = sword.getItemMeta();
         meta.displayName(type.displayName());
+        applyResourcePackModel(meta, type.modelId());
         if (type == SwordType.KNOCKBACK) {
             meta.addEnchant(Enchantment.KNOCKBACK, 2, true);
             meta.addEnchant(Enchantment.UNBREAKING, 2, true);
@@ -506,6 +542,7 @@ final class SwordManager implements Listener, AutoCloseable {
         ItemMeta meta = bow.getItemMeta();
         meta.displayName(Component.text(PUNCH_BOW_NAME, NamedTextColor.DARK_PURPLE)
                 .decoration(TextDecoration.ITALIC, false));
+        applyResourcePackModel(meta, PUNCH_BOW_ID);
         meta.addEnchant(Enchantment.POWER, 5, true);
         meta.addEnchant(Enchantment.FLAME, 1, true);
         meta.addEnchant(Enchantment.PUNCH, 2, true);
@@ -517,6 +554,41 @@ final class SwordManager implements Listener, AutoCloseable {
         return bow;
     }
 
+    boolean isPunchBow(ItemStack item) {
+        if (item == null || item.getType() != Material.BOW || !item.hasItemMeta()) {
+            return false;
+        }
+        ItemMeta meta = item.getItemMeta();
+        String stored = meta.getPersistentDataContainer().get(
+                swordTypeKey, PersistentDataType.STRING);
+        if (!PUNCH_BOW_ID.equals(stored)) {
+            return false;
+        }
+        if (applyResourcePackModel(meta, PUNCH_BOW_ID)) {
+            item.setItemMeta(meta);
+        }
+        return true;
+    }
+
+    ItemStack mergePunchBows(ItemStack first, ItemStack second) {
+        if (!isPunchBow(first) || !isPunchBow(second)) {
+            return null;
+        }
+        ItemStack merged = first.clone();
+        merged.setAmount(1);
+        int maxDurability = merged.getType().getMaxDurability();
+        Damageable firstMeta = (Damageable) first.getItemMeta();
+        Damageable secondMeta = (Damageable) second.getItemMeta();
+        int firstRemaining = Math.max(0, maxDurability - firstMeta.getDamage());
+        int secondRemaining = Math.max(0, maxDurability - secondMeta.getDamage());
+        int mergedRemaining = Math.min(maxDurability, firstRemaining + secondRemaining);
+        Damageable mergedMeta = (Damageable) merged.getItemMeta();
+        mergedMeta.setDamage(Math.max(0, maxDurability - mergedRemaining));
+        applyResourcePackModel(mergedMeta, PUNCH_BOW_ID);
+        merged.setItemMeta(mergedMeta);
+        return merged;
+    }
+
     private SwordType swordType(ItemStack item) {
         if (item == null || !item.hasItemMeta()) {
             return null;
@@ -524,6 +596,10 @@ final class SwordManager implements Listener, AutoCloseable {
         ItemMeta meta = item.getItemMeta();
         String stored = meta.getPersistentDataContainer().get(swordTypeKey, PersistentDataType.STRING);
         SwordType tagged = SwordType.fromName(stored);
+        if (tagged == SwordType.EXCAVATOR && item.getType() == Material.DIAMOND_PICKAXE) {
+            item.setType(Material.NETHERITE_PICKAXE);
+            meta = item.getItemMeta();
+        }
         if (tagged != null && item.getType() == tagged.material) {
             normalizeSwordPresentation(item, tagged);
             applyCooldownComponent(item, tagged);
@@ -569,6 +645,14 @@ final class SwordManager implements Listener, AutoCloseable {
         boolean shouldBeUnbreakable = type != SwordType.KNOCKBACK;
         boolean changed = !desiredName.equals(meta.displayName())
                 || meta.isUnbreakable() != shouldBeUnbreakable;
+        if (applyResourcePackModel(meta, type.modelId())) {
+            changed = true;
+        }
+        if ((type == SwordType.VOID || type == SwordType.INHIBITOR)
+                && !standardLore(type).equals(meta.lore())) {
+            meta.lore(standardLore(type));
+            changed = true;
+        }
         if (type == SwordType.EXECUTIONER
                 && !meta.getPersistentDataContainer().has(
                         executionerKillsKey, PersistentDataType.INTEGER)) {
@@ -600,6 +684,17 @@ final class SwordManager implements Listener, AutoCloseable {
                 executionerKillsKey, PersistentDataType.INTEGER, kills);
         meta.lore(executionerLore(kills));
         item.setItemMeta(meta);
+    }
+
+    private boolean applyResourcePackModel(ItemMeta meta, String modelId) {
+        var customModelData = meta.getCustomModelDataComponent();
+        List<String> expected = List.of(modelId);
+        if (customModelData.getStrings().equals(expected)) {
+            return false;
+        }
+        customModelData.setStrings(expected);
+        meta.setCustomModelDataComponent(customModelData);
+        return true;
     }
 
     private String executionerId(ItemStack item) {
@@ -977,7 +1072,7 @@ final class SwordManager implements Listener, AutoCloseable {
                 "Sweeping Edge III",
                 "Fire Aspect II",
                 "Unbreakable",
-                "A chance to take enemies' vision!"
+                "A chance to take enemies vision!"
         )),
         LIFESTEAL("lifesteal", "❤", "Lifesteal Sword", NamedTextColor.RED,
                 Material.NETHERITE_SWORD, null, false,
@@ -989,11 +1084,11 @@ final class SwordManager implements Listener, AutoCloseable {
         )),
         INHIBITOR("inhibitor", "🔒", "Inhibitor Sword", NamedTextColor.AQUA,
                 Material.NETHERITE_SWORD, null, false,
-                "A chance to disable enemies' cobwebs!", List.of(
+                "A chance to disable enemies cobwebs!", List.of(
                 "Sharpness V",
                 "Sweeping Edge III",
                 "Fire Aspect II",
-                "A chance to disable enemies' cobwebs!"
+                "A chance to disable enemies cobwebs!"
         )),
         KNOCKBACK("knockback", "", "Knockback Sword", NamedTextColor.YELLOW,
                 Material.GOLDEN_SWORD, null, false, "", List.of()),
@@ -1024,7 +1119,7 @@ final class SwordManager implements Listener, AutoCloseable {
                 "Shift right click or use /sword ability to activate it."
         )),
         EXCAVATOR("excavator", "", "Excavator Pickaxe", TextColor.color(0x007AC7),
-                Material.DIAMOND_PICKAXE, null, false, "", List.of(
+                Material.NETHERITE_PICKAXE, null, false, "", List.of(
                 "Silk Touch",
                 "Efficiency V",
                 "Mines in a 3x3x3 block area!"
@@ -1073,6 +1168,22 @@ final class SwordManager implements Listener, AutoCloseable {
                 case PROTECTION -> PROTECTION_COOLDOWN_TICKS;
                 case EXPLOSION -> EXPLOSION_COOLDOWN_TICKS;
                 default -> 0;
+            };
+        }
+
+        private String modelId() {
+            return switch (this) {
+                case STRIKE -> "strike_sword";
+                case DASH -> "dash_sword";
+                case EXECUTIONER -> "executioner_sword";
+                case VOID -> "void_sword";
+                case LIFESTEAL -> "lifesteal_sword";
+                case INHIBITOR -> "inhibitor_sword";
+                case KNOCKBACK -> "knockback_sword";
+                case PROTECTION -> "protection_axe";
+                case RESISTANCE -> "resistance_axe";
+                case EXPLOSION -> "explosion_axe";
+                case EXCAVATOR -> "excavator_pickaxe";
             };
         }
 

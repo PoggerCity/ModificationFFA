@@ -75,10 +75,6 @@ final class TokenManager implements Listener, AutoCloseable {
     private static final int EXECUTIONER_SIZE = 27;
     private static final int EXECUTIONER_SLOT = 13;
     private static final int EXECUTIONER_FRAMES = 200;
-    private static final double GRADIENT_TEXT_SPAN = 0.72D;
-    private static final int[] GRADIENT_STOPS = {
-            0x8A00B8, 0xB000B5, 0xD81796, 0xF15B5B, 0xFF9C00, 0xFFE11A
-    };
 
     private final JavaPlugin plugin;
     private final NamespacedKey tokenKey;
@@ -462,6 +458,10 @@ final class TokenManager implements Listener, AutoCloseable {
         }
     }
 
+    void giveExecutionerToken(Player player) {
+        giveTokens(player, TokenType.KILL, 1);
+    }
+
     private void giveItem(Player player, ItemStack item) {
         for (ItemStack overflow : player.getInventory().addItem(item).values()) {
             Item dropped = player.getWorld().dropItemNaturally(player.getLocation(), overflow);
@@ -587,17 +587,10 @@ final class TokenManager implements Listener, AutoCloseable {
         List<ItemStack> frames = new ArrayList<>(EXECUTIONER_FRAMES);
         String label = "Trade Executioner Heads";
         for (int frame = 0; frame < EXECUTIONER_FRAMES; frame++) {
-            Component name = Component.empty();
-            for (int index = 0; index < label.length(); index++) {
-                double phase = (((index / (double) Math.max(1, label.length() - 1))
-                        * GRADIENT_TEXT_SPAN) - (frame / (double) EXECUTIONER_FRAMES));
-                phase -= Math.floor(phase);
-                double progress = 0.5 + 0.5 * Math.cos(phase * Math.PI * 2.0);
-                name = name.append(Component.text(label.charAt(index), gradientColor(progress)));
-            }
             ItemStack head = new ItemStack(Material.PLAYER_HEAD);
             ItemMeta meta = head.getItemMeta();
-            meta.displayName(name.decoration(TextDecoration.ITALIC, false));
+            meta.displayName(GradientText.animated(label, frame, EXECUTIONER_FRAMES)
+                    .decoration(TextDecoration.ITALIC, false));
             meta.lore(List.of(
                     Component.text("Trade in executioner heads for kill tokens.", NamedTextColor.GRAY)
                             .decoration(TextDecoration.ITALIC, false),
@@ -618,27 +611,6 @@ final class TokenManager implements Listener, AutoCloseable {
         meta.displayName(Component.text(" ").decoration(TextDecoration.ITALIC, false));
         item.setItemMeta(meta);
         return item;
-    }
-
-    private TextColor gradientColor(double progress) {
-        double scaled = Math.max(0.0, Math.min(1.0, progress)) * (GRADIENT_STOPS.length - 1);
-        int lowerIndex = Math.min((int) scaled, GRADIENT_STOPS.length - 2);
-        double blend = smootherStep(scaled - lowerIndex);
-        int lower = GRADIENT_STOPS[lowerIndex];
-        int upper = GRADIENT_STOPS[lowerIndex + 1];
-        return TextColor.color(
-                blendChannel(lower >> 16, upper >> 16, blend),
-                blendChannel(lower >> 8, upper >> 8, blend),
-                blendChannel(lower, upper, blend)
-        );
-    }
-
-    private int blendChannel(int from, int to, double amount) {
-        return (int) Math.round((from & 0xFF) + ((to & 0xFF) - (from & 0xFF)) * amount);
-    }
-
-    private double smootherStep(double amount) {
-        return amount * amount * amount * (amount * ((amount * 6.0D) - 15.0D) + 10.0D);
     }
 
     private void markDirty() {

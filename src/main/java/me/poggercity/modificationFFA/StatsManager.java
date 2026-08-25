@@ -49,6 +49,7 @@ final class StatsManager implements Listener, AutoCloseable {
     private static final long SAVE_INTERVAL_TICKS = 20L * 60L;
 
     private final JavaPlugin plugin;
+    private final SettingsManager settingsManager;
     private final Path statsFile;
     private final Gson gson = new GsonBuilder().setPrettyPrinting().create();
     private final Map<UUID, PlayerStats> stats = new HashMap<>();
@@ -60,8 +61,9 @@ final class StatsManager implements Listener, AutoCloseable {
     private BukkitTask saveTask;
     private boolean closed;
 
-    StatsManager(JavaPlugin plugin) {
+    StatsManager(JavaPlugin plugin, SettingsManager settingsManager) {
         this.plugin = plugin;
+        this.settingsManager = settingsManager;
         this.statsFile = plugin.getDataFolder().toPath().resolve("stats.json");
         this.writer = Executors.newSingleThreadExecutor(runnable -> {
             Thread thread = new Thread(runnable, "ModificationFFA-Stats-Writer");
@@ -109,6 +111,16 @@ final class StatsManager implements Listener, AutoCloseable {
                 targetId = known.getKey();
                 targetName = known.getValue().lastKnownName;
             }
+        }
+
+        if (sender instanceof Player viewer
+                && !viewer.getUniqueId().equals(targetId)
+                && settingsManager.hideStatsEnabled(targetId)
+                && !viewer.hasPermission("modificationffa.stats.view-hidden")) {
+            sender.sendMessage(MessageStyle.prefix()
+                    .append(Component.text(targetName, NamedTextColor.GREEN))
+                    .append(Component.text(" has hidden their stats.", NamedTextColor.GRAY)));
+            return true;
         }
 
         display(sender, targetName, stats.computeIfAbsent(targetId, ignored -> new PlayerStats(targetName)));

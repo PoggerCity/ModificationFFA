@@ -33,22 +33,8 @@ final class BinManager implements Listener, AutoCloseable {
     private static final int DELETE_SLOT = 31;
     private static final long ANIMATION_PERIOD_TICKS = 1L;
     private static final int ANIMATION_FRAME_COUNT = 120;
-    private static final double GRADIENT_TEXT_SPAN = 0.72D;
     private static final String DELETE_LABEL = "Delete Items";
     private static final int GRADIENT_PURPLE = 0xA000B8;
-    private static final int GRADIENT_DEEP_PINK = 0xC000B4;
-    private static final int GRADIENT_PINK = 0xE100A8;
-    private static final int GRADIENT_CORAL = 0xF34C68;
-    private static final int GRADIENT_GOLD = 0xFF9200;
-    private static final int GRADIENT_YELLOW = 0xFFD21A;
-    private static final int[] GRADIENT_STOPS = {
-            GRADIENT_PURPLE,
-            GRADIENT_DEEP_PINK,
-            GRADIENT_PINK,
-            GRADIENT_CORAL,
-            GRADIENT_GOLD,
-            GRADIENT_YELLOW
-    };
 
     private final ModificationFFA plugin;
     private final Map<UUID, BinHolder> openBins = new HashMap<>();
@@ -204,49 +190,14 @@ final class BinManager implements Listener, AutoCloseable {
     private List<ItemStack> createDeleteFrames() {
         List<ItemStack> frames = new ArrayList<>(ANIMATION_FRAME_COUNT);
         for (int phase = 0; phase < ANIMATION_FRAME_COUNT; phase++) {
-            Component name = Component.empty();
-            for (int character = 0; character < DELETE_LABEL.length(); character++) {
-                TextColor color = gradientColor(animationProgress(phase, character));
-                name = name.append(Component.text(DELETE_LABEL.charAt(character), color));
-            }
-
             ItemStack button = new ItemStack(Material.LAVA_BUCKET);
             ItemMeta meta = button.getItemMeta();
-            meta.displayName(name.decoration(TextDecoration.ITALIC, false));
+            meta.displayName(GradientText.animated(DELETE_LABEL, phase, ANIMATION_FRAME_COUNT)
+                    .decoration(TextDecoration.ITALIC, false));
             button.setItemMeta(meta);
             frames.add(button);
         }
         return List.copyOf(frames);
-    }
-
-    private double animationProgress(int phase, int character) {
-        double globalPhase = phase / (double) ANIMATION_FRAME_COUNT;
-        double characterPhase = (character / (double) Math.max(1, DELETE_LABEL.length() - 1))
-                * GRADIENT_TEXT_SPAN;
-        double localPhase = characterPhase - globalPhase;
-        localPhase -= Math.floor(localPhase);
-        return 0.5 + (0.5 * Math.cos(localPhase * Math.PI * 2.0));
-    }
-
-    private TextColor gradientColor(double progress) {
-        double scaled = Math.max(0.0, Math.min(1.0, progress)) * (GRADIENT_STOPS.length - 1);
-        int lowerIndex = Math.min((int) scaled, GRADIENT_STOPS.length - 2);
-        double blend = smootherStep(scaled - lowerIndex);
-
-        int lower = GRADIENT_STOPS[lowerIndex];
-        int upper = GRADIENT_STOPS[lowerIndex + 1];
-        int red = interpolateChannel(lower >> 16, upper >> 16, blend);
-        int green = interpolateChannel(lower >> 8, upper >> 8, blend);
-        int blue = interpolateChannel(lower, upper, blend);
-        return TextColor.color(red, green, blue);
-    }
-
-    private int interpolateChannel(int from, int to, double blend) {
-        return (int) Math.round((from & 0xFF) + (((to & 0xFF) - (from & 0xFF)) * blend));
-    }
-
-    private double smootherStep(double amount) {
-        return amount * amount * amount * (amount * ((amount * 6.0D) - 15.0D) + 10.0D);
     }
 
     private ItemStack createFiller() {

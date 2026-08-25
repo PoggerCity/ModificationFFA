@@ -19,6 +19,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -29,10 +30,14 @@ import java.util.concurrent.TimeUnit;
 public final class ModificationFFA extends JavaPlugin implements Listener {
 
     private static final long TICKS_PER_MINUTE = 20L * 60L;
+    private static final List<String> MODIFICATION_SUBCOMMANDS = List.of(
+            "bin", "clear", "executioner", "find", "help", "merge", "ping", "settings", "stats");
 
     private final Map<UUID, Long> linkCommandUses = new HashMap<>();
 
     private KitManager kitManager;
+    private SettingsManager settingsManager;
+    private MergeManager mergeManager;
     private BinManager binManager;
     private PlayerUtilityCommands playerUtilityCommands;
     private StatsManager statsManager;
@@ -63,12 +68,14 @@ public final class ModificationFFA extends JavaPlugin implements Listener {
             return;
         }
 
+        settingsManager = new SettingsManager(this);
+        settingsManager.start();
         kitManager = new KitManager(this);
         kitManager.start();
         binManager = new BinManager(this);
         binManager.start();
         playerUtilityCommands = new PlayerUtilityCommands();
-        statsManager = new StatsManager(this);
+        statsManager = new StatsManager(this, settingsManager);
         statsManager.start();
         biomeManager = new BiomeManager(this);
         biomeManager.start();
@@ -78,9 +85,11 @@ public final class ModificationFFA extends JavaPlugin implements Listener {
         spawnManager.start();
         combatManager = new CombatManager(this, statsManager, spawnManager, tokenManager);
         combatManager.start();
-        socialManager = new SocialManager();
-        swordManager = new SwordManager(this);
+        socialManager = new SocialManager(this, settingsManager);
+        swordManager = new SwordManager(this, settingsManager, tokenManager);
         swordManager.start();
+        mergeManager = new MergeManager(this, swordManager);
+        mergeManager.start();
         getServer().getPluginManager().registerEvents(statsManager, this);
         getServer().getPluginManager().registerEvents(biomeManager, this);
         getServer().getPluginManager().registerEvents(tokenManager, this);
@@ -94,6 +103,9 @@ public final class ModificationFFA extends JavaPlugin implements Listener {
     @Override
     public void onDisable() {
         cancelReminderTask();
+        if (mergeManager != null) {
+            mergeManager.close();
+        }
         if (kitManager != null) {
             kitManager.close();
         }
@@ -121,6 +133,9 @@ public final class ModificationFFA extends JavaPlugin implements Listener {
         if (swordManager != null) {
             swordManager.close();
         }
+        if (settingsManager != null) {
+            settingsManager.close();
+        }
         linkCommandUses.clear();
         getLogger().info("ModificationFFA has been disabled.");
     }
@@ -137,6 +152,8 @@ public final class ModificationFFA extends JavaPlugin implements Listener {
             case "store" -> sendLinkCommand(sender, linkMessages.store());
             case "kit" -> kitManager.handleCommand(sender, args);
             case "bin" -> binManager.open(sender);
+            case "merge" -> mergeManager.open(sender);
+            case "settings" -> settingsManager.open(sender);
             case "clear", "ping" -> playerUtilityCommands.handleCommand(sender, command.getName(), args);
             case "stats" -> statsManager.handleCommand(sender, args);
             case "biome" -> biomeManager.handleBiome(sender, args);
@@ -149,9 +166,9 @@ public final class ModificationFFA extends JavaPlugin implements Listener {
             case "setspawn" -> spawnManager.handleSetSpawn(sender, args);
             case "combat" -> combatManager.handleCommand(sender, args);
             case "msg" -> label.equalsIgnoreCase("m")
-                    && args.length == 1
-                    && args[0].equalsIgnoreCase("executioner")
-                    ? tokenManager.handleExecutioner(sender, new String[0])
+                    && args.length > 0
+                    && isModificationSubcommand(args[0])
+                    ? dispatchModificationSubcommand(sender, args[0], tail(args))
                     : socialManager.handleMessage(sender, args);
             case "reply" -> socialManager.handleReply(sender, args);
             case "continue" -> socialManager.handleContinue(sender, args);
@@ -196,22 +213,35 @@ public final class ModificationFFA extends JavaPlugin implements Listener {
             return combatManager.tabComplete(sender, args);
         }
         if (command.getName().equalsIgnoreCase("msg")) {
+            if (alias.equalsIgnoreCase("m") && args.length > 1
+                    && isModificationSubcommand(args[0])) {
+                return tabCompleteModificationSubcommand(sender, args[0], tail(args));
+            }
             List<String> suggestions = new ArrayList<>(socialManager.tabCompleteMessage(args));
-            if (alias.equalsIgnoreCase("m") && args.length == 1
-                    && "executioner".startsWith(args[0].toLowerCase(Locale.ROOT))) {
-                suggestions.add("executioner");
+            if (alias.equalsIgnoreCase("m") && args.length == 1) {
+                String partial = args[0].toLowerCase(Locale.ROOT);
+                MODIFICATION_SUBCOMMANDS.stream()
+                        .filter(option -> option.startsWith(partial))
+                        .forEach(suggestions::add);
             }
             return suggestions.stream().distinct().toList();
         }
         if (command.getName().equalsIgnoreCase("sword")) {
             return swordManager.tabComplete(sender, args);
         }
-        if (command.getName().equalsIgnoreCase("modification") && args.length == 1) {
-            List<String> available = sender.hasPermission("modificationffa.reload")
-                    ? List.of("help", "reload")
-                    : List.of("help");
-            String current = args[0].toLowerCase(Locale.ROOT);
-            return available.stream().filter(subcommand -> subcommand.startsWith(current)).toList();
+        if (command.getName().equalsIgnoreCase("modification")) {
+            if (args.length > 1 && isModificationSubcommand(args[0])) {
+                return tabCompleteModificationSubcommand(sender, args[0], tail(args));
+            }
+            if (args.length == 1) {
+                List<String> available = new ArrayList<>(MODIFICATION_SUBCOMMANDS);
+                if (sender.hasPermission("modificationffa.reload")) {
+                    available.add("reload");
+                }
+                String current = args[0].toLowerCase(Locale.ROOT);
+                return available.stream().filter(subcommand -> subcommand.startsWith(current))
+                        .distinct().toList();
+            }
         }
         return List.of();
     }
@@ -254,6 +284,10 @@ public final class ModificationFFA extends JavaPlugin implements Listener {
     }
 
     private boolean handleModificationCommand(CommandSender sender, String[] args) {
+        if (args.length > 0 && isModificationSubcommand(args[0])
+                && !args[0].equalsIgnoreCase("help")) {
+            return dispatchModificationSubcommand(sender, args[0], tail(args));
+        }
         if (args.length > 0 && args[0].equalsIgnoreCase("reload")) {
             return reloadPlugin(sender);
         }
@@ -276,6 +310,10 @@ public final class ModificationFFA extends JavaPlugin implements Listener {
                     .append(Component.text(" - View player statistics.", NamedTextColor.GRAY)));
             sender.sendMessage(Component.text("/executioner", NamedTextColor.GREEN)
                     .append(Component.text(" - Open the Executioner Trader.", NamedTextColor.GRAY)));
+            sender.sendMessage(Component.text("/merge", NamedTextColor.GREEN)
+                    .append(Component.text(" - Open the Punch Bow Merger.", NamedTextColor.GRAY)));
+            sender.sendMessage(Component.text("/settings", NamedTextColor.GREEN)
+                    .append(Component.text(" - Open your Modification Settings.", NamedTextColor.GRAY)));
             sender.sendMessage(Component.text("/sword", NamedTextColor.GREEN)
                     .append(Component.text(" - View and use Modification swords.", NamedTextColor.GRAY)));
             sender.sendMessage(Component.text("/spawn", NamedTextColor.GREEN)
@@ -293,6 +331,40 @@ public final class ModificationFFA extends JavaPlugin implements Listener {
 
         sendPluginInformation(sender);
         return true;
+    }
+
+    private boolean dispatchModificationSubcommand(
+            CommandSender sender, String subcommand, String[] args) {
+        return switch (subcommand.toLowerCase(Locale.ROOT)) {
+            case "bin" -> binManager.open(sender);
+            case "clear" -> playerUtilityCommands.handleCommand(sender, "clear", args);
+            case "executioner" -> tokenManager.handleExecutioner(sender, args);
+            case "find" -> biomeManager.handleFind(sender, args);
+            case "help" -> handleModificationCommand(sender, new String[]{"help"});
+            case "merge" -> mergeManager.open(sender);
+            case "ping" -> playerUtilityCommands.handleCommand(sender, "ping", args);
+            case "settings" -> settingsManager.open(sender);
+            case "stats" -> statsManager.handleCommand(sender, args);
+            default -> false;
+        };
+    }
+
+    private List<String> tabCompleteModificationSubcommand(
+            CommandSender sender, String subcommand, String[] args) {
+        return switch (subcommand.toLowerCase(Locale.ROOT)) {
+            case "clear", "ping" -> playerUtilityCommands.tabComplete(sender, subcommand, args);
+            case "find" -> biomeManager.findTabComplete(sender, args);
+            case "stats" -> statsManager.tabComplete(args);
+            default -> List.of();
+        };
+    }
+
+    private boolean isModificationSubcommand(String value) {
+        return MODIFICATION_SUBCOMMANDS.stream().anyMatch(value::equalsIgnoreCase);
+    }
+
+    private String[] tail(String[] args) {
+        return Arrays.copyOfRange(args, 1, args.length);
     }
 
     private boolean reloadPlugin(CommandSender sender) {
@@ -389,6 +461,9 @@ public final class ModificationFFA extends JavaPlugin implements Listener {
         nextReminderIsDiscord = !nextReminderIsDiscord;
 
         for (Player player : getServer().getOnlinePlayers()) {
+            if (!settingsManager.broadcastTitlesEnabled(player)) {
+                continue;
+            }
             sendMessages(player, messages);
             if (reminderSound != null) {
                 player.playSound(reminderSound);

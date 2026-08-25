@@ -13,7 +13,7 @@ commands:
   modification:
     description: Shows information about ModificationFFA.
     usage: /modification
-    aliases: [modificationffa]
+    aliases: [modificationffa, modify]
   discord:
     description: Shows the server Discord link.
     usage: /discord
@@ -27,6 +27,12 @@ commands:
     description: Opens the Modification Bin.
     usage: /bin
     aliases: [trash]
+  merge:
+    description: Opens the Punch Bow Merger.
+    usage: /merge
+  settings:
+    description: Opens your Modification Settings.
+    usage: /settings
   clear:
     description: Clears your inventory.
     usage: /clear [player]
@@ -123,4 +129,40 @@ permissions:
     default: true
   modificationffa.sword.give:
     description: Allows giving Modification swords to players.
+    default: op
+  modificationffa.stats.view-hidden:
+    description: Allows viewing players who hide their stats.
+    default: op
+  modificationffa.gui.settings.broadcast:
+    description: Allows toggling broadcast titles.
+    default: true
+  modificationffa.gui.settings.connection-messages:
+    description: Allows toggling connection messages.
+    default: true
+  modificationffa.gui.settings.message-sound:
+    description: Allows toggling private-message sounds.
+    default: true
+  modificationffa.gui.settings.protection:
+    description: Allows toggling Protection Axe shift-click activation.
+    default: true
+  modificationffa.gui.settings.explosion:
+    description: Allows toggling Explosion Axe shift-click activation.
+    default: true
+  modificationffa.gui.settings.hide-stats:
+    description: Allows hiding personal stats from other players.
+    default: true
+  modificationffa.gui.settings.executioner-token:
+    description: Allows receiving kill tokens from Executioner Sword procs.
+    default: true
+  modificationffa.gui.settings.anti-ghost-water:
+    description: Allows toggling anti-ghost-water inventory resyncs.
+    default: true
+  modificationffa.gui.settings.personal-time:
+    description: Allows using exclusive personal-time settings.
+    default: false
+  modificationffa.gui.settings.personal-weather:
+    description: Allows using exclusive personal-weather settings.
+    default: false
+  modificationffa.gui.settings.staff:
+    description: Allows opening staff settings when implemented.
     default: op
