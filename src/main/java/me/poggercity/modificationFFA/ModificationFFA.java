@@ -226,8 +226,8 @@ public final class ModificationFFA extends JavaPlugin implements Listener {
             case "msg" -> MESSAGE_COMMAND_LABELS.contains(label.toLowerCase(Locale.ROOT))
                     && rootAliasesAtLoad.contains(label.toLowerCase(Locale.ROOT))
                     && args.length > 0
-                    && isModificationSubcommand(args[0])
-                    ? dispatchModificationSubcommand(sender, args[0], tail(args))
+                    && (isModificationSubcommand(args[0]) || args[0].equalsIgnoreCase("reload"))
+                    ? handleModificationCommand(sender, args)
                     : socialManager.handleMessage(sender, args);
             case "reply" -> socialManager.handleReply(sender, args);
             case "continue" -> socialManager.handleContinue(sender, args);
