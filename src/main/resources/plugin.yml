@@ -89,6 +89,12 @@ commands:
   pet:
     description: Spawns and manages your cosmetic pet.
     usage: /pet help
+  arena:
+    description: Creates and configures gameplay arenas.
+    usage: /arena help
+  protectarena:
+    description: Creates protected build arenas and exemptions.
+    usage: /protectarena help
 
 permissions:
   modificationffa.reload:
@@ -155,6 +161,12 @@ permissions:
     default: false
   modificationffa.pet.list:
     description: Allows listing all available pets.
+    default: op
+  modificationffa.arena.admin:
+    description: Allows creating and configuring gameplay arenas.
+    default: op
+  modificationffa.protectarena.admin:
+    description: Allows creating protected arenas and exemptions.
     default: op
   modificationffa.stats.view-hidden:
     description: Allows viewing players who hide their stats.

@@ -46,6 +46,8 @@ public final class ModificationFFA extends JavaPlugin implements Listener {
     private SpawnManager spawnManager;
     private CombatManager combatManager;
     private SocialManager socialManager;
+    private ArenaManager arenaManager;
+    private ProtectArenaManager protectArenaManager;
     private SwordManager swordManager;
     private PetManager petManager;
     private LinkMessages linkMessages;
@@ -87,7 +89,19 @@ public final class ModificationFFA extends JavaPlugin implements Listener {
         combatManager = new CombatManager(this, statsManager, spawnManager, tokenManager);
         combatManager.start();
         socialManager = new SocialManager(this, settingsManager);
-        swordManager = new SwordManager(this, settingsManager, tokenManager);
+        arenaManager = new ArenaManager(this);
+        if (!arenaManager.start()) {
+            getLogger().severe("ModificationFFA stopped because arenas.json could not be loaded safely.");
+            getServer().getPluginManager().disablePlugin(this);
+            return;
+        }
+        protectArenaManager = new ProtectArenaManager(this, arenaManager);
+        if (!protectArenaManager.start()) {
+            getLogger().severe("ModificationFFA stopped because protected-arenas.db could not be loaded safely.");
+            getServer().getPluginManager().disablePlugin(this);
+            return;
+        }
+        swordManager = new SwordManager(this, settingsManager, tokenManager, protectArenaManager);
         swordManager.start();
         mergeManager = new MergeManager(this, swordManager);
         mergeManager.start();
@@ -139,6 +153,12 @@ public final class ModificationFFA extends JavaPlugin implements Listener {
         if (swordManager != null) {
             swordManager.close();
         }
+        if (protectArenaManager != null) {
+            protectArenaManager.close();
+        }
+        if (arenaManager != null) {
+            arenaManager.close();
+        }
         if (settingsManager != null) {
             settingsManager.close();
         }
@@ -180,6 +200,8 @@ public final class ModificationFFA extends JavaPlugin implements Listener {
             case "continue" -> socialManager.handleContinue(sender, args);
             case "sword" -> swordManager.handleCommand(sender, args);
             case "pet" -> petManager.handleCommand(sender, args);
+            case "arena" -> arenaManager.handleCommand(sender, args);
+            case "protectarena" -> protectArenaManager.handleCommand(sender, args);
             case "modification" -> handleModificationCommand(sender, args);
             default -> false;
         };
@@ -239,6 +261,12 @@ public final class ModificationFFA extends JavaPlugin implements Listener {
         if (command.getName().equalsIgnoreCase("pet")) {
             return petManager.tabComplete(sender, args);
         }
+        if (command.getName().equalsIgnoreCase("arena")) {
+            return arenaManager.tabComplete(sender, args);
+        }
+        if (command.getName().equalsIgnoreCase("protectarena")) {
+            return protectArenaManager.tabComplete(sender, args);
+        }
         if (command.getName().equalsIgnoreCase("modification")) {
             if (args.length > 1 && isModificationSubcommand(args[0])) {
                 return tabCompleteModificationSubcommand(sender, args[0], tail(args));
@@ -259,6 +287,9 @@ public final class ModificationFFA extends JavaPlugin implements Listener {
     @EventHandler
     public void onPlayerQuit(PlayerQuitEvent event) {
         linkCommandUses.remove(event.getPlayer().getUniqueId());
+        if (kitManager != null) {
+            kitManager.clearCooldown(event.getPlayer().getUniqueId());
+        }
     }
 
     private boolean sendLinkCommand(CommandSender sender, List<Component> messages) {

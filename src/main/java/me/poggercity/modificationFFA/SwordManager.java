@@ -92,6 +92,7 @@ final class SwordManager implements Listener, AutoCloseable {
     private final ModificationFFA plugin;
     private final SettingsManager settingsManager;
     private final TokenManager tokenManager;
+    private final ProtectArenaManager protectArenaManager;
     private final NamespacedKey swordTypeKey;
     private final NamespacedKey executionerKillsKey;
     private final NamespacedKey executionerIdKey;
@@ -102,10 +103,12 @@ final class SwordManager implements Listener, AutoCloseable {
     private final Map<UUID, ExplosionKnockback> pendingExplosionKnockbacks = new HashMap<>();
     private final Set<UUID> excavatingPlayers = new HashSet<>();
 
-    SwordManager(ModificationFFA plugin, SettingsManager settingsManager, TokenManager tokenManager) {
+    SwordManager(ModificationFFA plugin, SettingsManager settingsManager, TokenManager tokenManager,
+                 ProtectArenaManager protectArenaManager) {
         this.plugin = plugin;
         this.settingsManager = settingsManager;
         this.tokenManager = tokenManager;
+        this.protectArenaManager = protectArenaManager;
         this.swordTypeKey = new NamespacedKey(plugin, "sword_type");
         this.executionerKillsKey = new NamespacedKey(plugin, "executioner_kills");
         this.executionerIdKey = new NamespacedKey(plugin, "executioner_id");
@@ -621,7 +624,6 @@ final class SwordManager implements Listener, AutoCloseable {
             return null;
         }
 
-        // Recognize swords already issued by the supplied ModifySwords JAR.
         if (!meta.isUnbreakable()
                 || meta.getEnchantLevel(Enchantment.SHARPNESS) != 5
                 || meta.getEnchantLevel(Enchantment.SWEEPING_EDGE) != 3
@@ -923,7 +925,8 @@ final class SwordManager implements Listener, AutoCloseable {
                         continue;
                     }
                     Block block = center.getWorld().getBlockAt(x, y, z);
-                    if (EXPLOSION_BREAKABLE_BLOCKS.contains(block.getType())) {
+                    if (EXPLOSION_BREAKABLE_BLOCKS.contains(block.getType())
+                            && protectArenaManager.breakByAbility(block)) {
                         block.setType(Material.AIR, false);
                     }
                 }

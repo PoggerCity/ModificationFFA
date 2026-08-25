@@ -23,6 +23,7 @@ final class KitManager implements AutoCloseable {
     private final ModificationFFA plugin;
     private final SettingsManager settingsManager;
     private final KitDatabase database;
+    private final KitLoadCooldown loadCooldown = new KitLoadCooldown();
     private final Set<UUID> activeOperations = ConcurrentHashMap.newKeySet();
 
     private ItemStack[] mainKit;
@@ -203,6 +204,14 @@ final class KitManager implements AutoCloseable {
             sendPurchasedItemsMessage(player);
             return;
         }
+        String remaining = loadCooldown.remaining(player.getUniqueId());
+        if (remaining != null) {
+            player.sendMessage(MessageStyle.prefix()
+                    .append(Component.text("You need to wait ", NamedTextColor.GRAY))
+                    .append(Component.text(remaining, NamedTextColor.GREEN))
+                    .append(Component.text(" before you can load your kit again.", NamedTextColor.GRAY)));
+            return;
+        }
         if (!canStartOperation(player)) {
             return;
         }
@@ -220,7 +229,6 @@ final class KitManager implements AutoCloseable {
                 return;
             }
 
-            // Re-check after the asynchronous read so items obtained during it are never deleted.
             if (purchasedItemSafetyBlocks(onlinePlayer)) {
                 sendPurchasedItemsMessage(onlinePlayer);
                 return;
@@ -245,6 +253,7 @@ final class KitManager implements AutoCloseable {
             try {
                 onlinePlayer.getInventory().setContents(cloneContents(kitToLoad));
                 onlinePlayer.updateInventory();
+                loadCooldown.recordSuccess(playerId);
                 onlinePlayer.sendMessage(MessageStyle.prefixed("You have loaded your kit."));
             } catch (IllegalArgumentException exception) {
                 plugin.getLogger().log(Level.SEVERE, "A saved kit has an invalid inventory size.", exception);
@@ -329,6 +338,10 @@ final class KitManager implements AutoCloseable {
                 && KitValidator.hasPurchasedMaterial(player.getInventory().getContents(), mainKit);
     }
 
+    void clearCooldown(UUID playerId) {
+        loadCooldown.clear(playerId);
+    }
+
     private void sendHelp(CommandSender sender) {
         sender.sendMessage(Component.text("Kit help", NamedTextColor.GREEN));
         sendHelpLine(sender, "/kit help", "The command to display helpful information.");
@@ -370,6 +383,7 @@ final class KitManager implements AutoCloseable {
     @Override
     public void close() {
         activeOperations.clear();
+        loadCooldown.clear();
         database.close();
     }
 }

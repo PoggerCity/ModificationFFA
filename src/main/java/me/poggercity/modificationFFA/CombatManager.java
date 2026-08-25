@@ -1005,7 +1005,6 @@ final class CombatManager implements Listener, AutoCloseable {
                 }
                 found = Bukkit.getWorld(UUID.fromString(world));
             } catch (IllegalArgumentException ignored) {
-                // The warning is emitted by the caller if this session cannot be restored.
             }
             return new Location(found, x, y, z, yaw, pitch);
         }

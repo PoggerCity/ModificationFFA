@@ -781,7 +781,6 @@ final class SettingsManager implements Listener, AutoCloseable {
                 try {
                     return valueOf(value.toUpperCase(Locale.ROOT));
                 } catch (IllegalArgumentException ignored) {
-                    // Fall back to the default selection below.
                 }
             }
             return DAY;
@@ -820,7 +819,6 @@ final class SettingsManager implements Listener, AutoCloseable {
                 try {
                     return valueOf(value.toUpperCase(Locale.ROOT));
                 } catch (IllegalArgumentException ignored) {
-                    // Fall back to the default selection below.
                 }
             }
             return CLEAR;
