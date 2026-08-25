@@ -86,6 +86,9 @@ commands:
   sword:
     description: Shows and uses Modification sword abilities.
     usage: /sword help
+  pet:
+    description: Spawns and manages your cosmetic pet.
+    usage: /pet help
 
 permissions:
   modificationffa.reload:
@@ -129,6 +132,29 @@ permissions:
     default: true
   modificationffa.sword.give:
     description: Allows giving Modification swords to players.
+    default: op
+  modificationffa.pet.spawn:
+    description: Allows spawning every ModificationFFA pet.
+    default: op
+    children:
+      modificationffa.pet.spawn.rabbit: true
+      modificationffa.pet.spawn.frog: true
+      modificationffa.pet.spawn.cat: true
+      modificationffa.pet.spawn.wolf: true
+  modificationffa.pet.spawn.rabbit:
+    description: Allows spawning a rabbit pet.
+    default: false
+  modificationffa.pet.spawn.frog:
+    description: Allows spawning a frog pet.
+    default: false
+  modificationffa.pet.spawn.cat:
+    description: Allows spawning a cat pet.
+    default: false
+  modificationffa.pet.spawn.wolf:
+    description: Allows spawning a wolf pet.
+    default: false
+  modificationffa.pet.list:
+    description: Allows listing all available pets.
     default: op
   modificationffa.stats.view-hidden:
     description: Allows viewing players who hide their stats.

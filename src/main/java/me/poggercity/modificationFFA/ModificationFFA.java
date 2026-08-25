@@ -47,6 +47,7 @@ public final class ModificationFFA extends JavaPlugin implements Listener {
     private CombatManager combatManager;
     private SocialManager socialManager;
     private SwordManager swordManager;
+    private PetManager petManager;
     private LinkMessages linkMessages;
     private BukkitTask reminderTask;
     private Sound reminderSound;
@@ -90,6 +91,8 @@ public final class ModificationFFA extends JavaPlugin implements Listener {
         swordManager.start();
         mergeManager = new MergeManager(this, swordManager);
         mergeManager.start();
+        petManager = new PetManager(this);
+        petManager.start();
         getServer().getPluginManager().registerEvents(statsManager, this);
         getServer().getPluginManager().registerEvents(biomeManager, this);
         getServer().getPluginManager().registerEvents(tokenManager, this);
@@ -105,6 +108,9 @@ public final class ModificationFFA extends JavaPlugin implements Listener {
         cancelReminderTask();
         if (mergeManager != null) {
             mergeManager.close();
+        }
+        if (petManager != null) {
+            petManager.close();
         }
         if (kitManager != null) {
             kitManager.close();
@@ -173,6 +179,7 @@ public final class ModificationFFA extends JavaPlugin implements Listener {
             case "reply" -> socialManager.handleReply(sender, args);
             case "continue" -> socialManager.handleContinue(sender, args);
             case "sword" -> swordManager.handleCommand(sender, args);
+            case "pet" -> petManager.handleCommand(sender, args);
             case "modification" -> handleModificationCommand(sender, args);
             default -> false;
         };
@@ -228,6 +235,9 @@ public final class ModificationFFA extends JavaPlugin implements Listener {
         }
         if (command.getName().equalsIgnoreCase("sword")) {
             return swordManager.tabComplete(sender, args);
+        }
+        if (command.getName().equalsIgnoreCase("pet")) {
+            return petManager.tabComplete(sender, args);
         }
         if (command.getName().equalsIgnoreCase("modification")) {
             if (args.length > 1 && isModificationSubcommand(args[0])) {
@@ -293,38 +303,22 @@ public final class ModificationFFA extends JavaPlugin implements Listener {
         }
 
         if (args.length > 0 && args[0].equalsIgnoreCase("help")) {
-            sender.sendMessage(Component.text("ModificationFFA commands:", NamedTextColor.GRAY));
-            sender.sendMessage(Component.text("/discord", NamedTextColor.GREEN)
-                    .append(Component.text(" - View the Discord link.", NamedTextColor.GRAY)));
-            sender.sendMessage(Component.text("/store", NamedTextColor.GREEN)
-                    .append(Component.text(" - View the store link.", NamedTextColor.GRAY)));
-            sender.sendMessage(Component.text("/bin", NamedTextColor.GREEN)
-                    .append(Component.text(" - Open the Modification Bin.", NamedTextColor.GRAY)));
-            sender.sendMessage(Component.text("/clear", NamedTextColor.GREEN)
-                    .append(Component.text(" - Clear your inventory.", NamedTextColor.GRAY)));
-            sender.sendMessage(Component.text("/ping", NamedTextColor.GREEN)
-                    .append(Component.text(" - View a player's ping.", NamedTextColor.GRAY)));
-            sender.sendMessage(Component.text("/find", NamedTextColor.GREEN)
-                    .append(Component.text(" - Find a player and their biome.", NamedTextColor.GRAY)));
-            sender.sendMessage(Component.text("/stats", NamedTextColor.GREEN)
-                    .append(Component.text(" - View player statistics.", NamedTextColor.GRAY)));
-            sender.sendMessage(Component.text("/executioner", NamedTextColor.GREEN)
-                    .append(Component.text(" - Open the Executioner Trader.", NamedTextColor.GRAY)));
-            sender.sendMessage(Component.text("/merge", NamedTextColor.GREEN)
-                    .append(Component.text(" - Open the Punch Bow Merger.", NamedTextColor.GRAY)));
-            sender.sendMessage(Component.text("/settings", NamedTextColor.GREEN)
-                    .append(Component.text(" - Open your Modification Settings.", NamedTextColor.GRAY)));
-            sender.sendMessage(Component.text("/sword", NamedTextColor.GREEN)
-                    .append(Component.text(" - View and use Modification swords.", NamedTextColor.GRAY)));
-            sender.sendMessage(Component.text("/spawn", NamedTextColor.GREEN)
-                    .append(Component.text(" - Teleport to the server spawn.", NamedTextColor.GRAY)));
-            sender.sendMessage(Component.text("/combat", NamedTextColor.GREEN)
-                    .append(Component.text(" - View your combat status.", NamedTextColor.GRAY)));
-            sender.sendMessage(Component.text("/msg", NamedTextColor.GREEN)
-                    .append(Component.text(" - Send a private message.", NamedTextColor.GRAY)));
+            sender.sendMessage(Component.text("------ ", NamedTextColor.GRAY)
+                    .append(Component.text("modify help", NamedTextColor.GREEN))
+                    .append(Component.text(" ------", NamedTextColor.GRAY)));
+            modificationHelpLine(sender, "/modify help", "The command to display helpful information.");
+            modificationHelpLine(sender, "/modify settings", "Lets you access your settings.");
+            modificationHelpLine(sender, "/modify stats", "Lets you view player statistics.");
+            modificationHelpLine(sender, "/modify find", "Find the location of a player.");
+            modificationHelpLine(sender, "/modify bin", "Open the Modification Bin.");
+            modificationHelpLine(sender, "/modify clear", "Clear your inventory.");
+            modificationHelpLine(sender, "/modify ping", "Check a player's ping to the server.");
+            modificationHelpLine(sender, "/modify executioner", "Trade Executioner heads for kill tokens.");
+            modificationHelpLine(sender, "/modify merge", "Merge your Punch Bows' durability.");
+            modificationHelpLine(sender, "/pet help", "View and manage your cosmetic pet.");
             if (sender.hasPermission("modificationffa.reload")) {
-                sender.sendMessage(Component.text("/modification reload", NamedTextColor.GREEN)
-                        .append(Component.text(" - Reload config.yml and messages.json.", NamedTextColor.GRAY)));
+                modificationHelpLine(sender, "/modification reload",
+                        "Reload config.yml and messages.json.");
             }
             return true;
         }
@@ -361,6 +355,12 @@ public final class ModificationFFA extends JavaPlugin implements Listener {
 
     private boolean isModificationSubcommand(String value) {
         return MODIFICATION_SUBCOMMANDS.stream().anyMatch(value::equalsIgnoreCase);
+    }
+
+    private void modificationHelpLine(CommandSender sender, String command, String description) {
+        sender.sendMessage(Component.text("- ", NamedTextColor.GRAY)
+                .append(Component.text(command, NamedTextColor.GREEN))
+                .append(Component.text(" - " + description, NamedTextColor.GRAY)));
     }
 
     private String[] tail(String[] args) {
