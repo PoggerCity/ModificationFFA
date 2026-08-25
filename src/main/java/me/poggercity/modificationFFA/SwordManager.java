@@ -9,6 +9,7 @@ import net.kyori.adventure.text.format.TextDecoration;
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import org.bukkit.Bukkit;
 import org.bukkit.GameMode;
+import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.Particle;
@@ -76,6 +77,11 @@ final class SwordManager implements Listener, AutoCloseable {
     private static final int COBWEB_LOCK_TICKS = 5 * 20;
     private static final double EXPLOSION_DAMAGE = 4.0D;
     private static final double EXPLOSION_RADIUS = 5.0D;
+    private static final Set<Material> EXPLOSION_BREAKABLE_BLOCKS = Set.of(
+            Material.STONE,
+            Material.OBSIDIAN,
+            Material.COBWEB
+    );
     private static final String PUNCH_BOW_ID = "punch_bow";
     private static final String PUNCH_BOW_NAME = "Punch Bow";
     private static final List<String> GIVE_TYPES = List.of(
@@ -520,7 +526,12 @@ final class SwordManager implements Listener, AutoCloseable {
             meta.addEnchant(Enchantment.SWEEPING_EDGE, 3, true);
             meta.addEnchant(Enchantment.FIRE_ASPECT, 2, true);
             meta.setUnbreakable(true);
-            meta.addItemFlags(ItemFlag.HIDE_ENCHANTS, ItemFlag.HIDE_UNBREAKABLE);
+            meta.addItemFlags(ItemFlag.HIDE_ENCHANTS);
+            if (type == SwordType.DASH) {
+                meta.removeItemFlags(ItemFlag.HIDE_ATTRIBUTES, ItemFlag.HIDE_UNBREAKABLE);
+            } else {
+                meta.addItemFlags(ItemFlag.HIDE_UNBREAKABLE);
+            }
             if (type == SwordType.EXECUTIONER) {
                 meta.getPersistentDataContainer().set(
                         executionerKillsKey, PersistentDataType.INTEGER, 0);
@@ -645,7 +656,7 @@ final class SwordManager implements Listener, AutoCloseable {
         boolean shouldBeUnbreakable = type != SwordType.KNOCKBACK;
         boolean changed = !desiredName.equals(meta.displayName())
                 || meta.isUnbreakable() != shouldBeUnbreakable;
-        if (type.isAbilityAxe()) {
+        if (type.revealsNativeTooltip()) {
             if (!meta.hasItemFlag(ItemFlag.HIDE_ENCHANTS)) {
                 meta.addItemFlags(ItemFlag.HIDE_ENCHANTS);
                 changed = true;
@@ -735,6 +746,20 @@ final class SwordManager implements Listener, AutoCloseable {
     }
 
     private List<Component> standardLore(SwordType type) {
+        if (type == SwordType.DASH) {
+            return List.of(
+                    grayLore("Sharpness V"),
+                    grayLore("Sweeping Edge III"),
+                    grayLore("Fire Aspect II"),
+                    grayLore("Lets you dash through the air!"),
+                    Component.empty(),
+                    grayLore("Can be activated by shift right clicking or by"),
+                    Component.text("doing ", NamedTextColor.GRAY)
+                            .append(Component.text("/sword ability", NamedTextColor.GREEN))
+                            .append(Component.text(" while holding the sword.", NamedTextColor.GRAY))
+                            .decoration(TextDecoration.ITALIC, false)
+            );
+        }
         if (type == SwordType.PROTECTION) {
             return List.of(
                     grayLore("Sharpness V"),
@@ -826,6 +851,8 @@ final class SwordManager implements Listener, AutoCloseable {
 
         Vector direction = player.getLocation().getDirection().normalize().multiply(2.0D);
         player.setVelocity(direction);
+        player.getWorld().playSound(
+                player.getLocation(), Sound.ENTITY_FIREWORK_ROCKET_LAUNCH, 1.0F, 1.0F);
         player.sendMessage(MessageStyle.prefixed("You have dashed through the air!"));
     }
 
@@ -854,6 +881,7 @@ final class SwordManager implements Listener, AutoCloseable {
                 player.getLocation(), Sound.ENTITY_GENERIC_EXPLODE, 1.0F, 1.0F);
         player.getWorld().spawnParticle(
                 Particle.EXPLOSION_EMITTER, player.getLocation().add(0.0D, 1.0D, 0.0D), 1);
+        clearExplosionBlocks(player.getLocation());
         double radiusSquared = EXPLOSION_RADIUS * EXPLOSION_RADIUS;
         for (org.bukkit.entity.Entity nearby : player.getNearbyEntities(
                 EXPLOSION_RADIUS, EXPLOSION_RADIUS, EXPLOSION_RADIUS)) {
@@ -878,15 +906,39 @@ final class SwordManager implements Listener, AutoCloseable {
                 pendingExplosionKnockbacks.remove(target.getUniqueId());
             }
         }
-        player.sendMessage(MessageStyle.prefixed("You unleashed an explosive shockwave!"));
+    }
+
+    private void clearExplosionBlocks(Location center) {
+        int radius = (int) Math.ceil(EXPLOSION_RADIUS);
+        int minimumY = Math.max(center.getWorld().getMinHeight(), center.getBlockY() - radius);
+        int maximumY = Math.min(center.getWorld().getMaxHeight() - 1, center.getBlockY() + radius);
+        double radiusSquared = EXPLOSION_RADIUS * EXPLOSION_RADIUS;
+        for (int x = center.getBlockX() - radius; x <= center.getBlockX() + radius; x++) {
+            for (int y = minimumY; y <= maximumY; y++) {
+                for (int z = center.getBlockZ() - radius; z <= center.getBlockZ() + radius; z++) {
+                    double deltaX = x + 0.5D - center.getX();
+                    double deltaY = y + 0.5D - center.getY();
+                    double deltaZ = z + 0.5D - center.getZ();
+                    if (deltaX * deltaX + deltaY * deltaY + deltaZ * deltaZ > radiusSquared) {
+                        continue;
+                    }
+                    Block block = center.getWorld().getBlockAt(x, y, z);
+                    if (EXPLOSION_BREAKABLE_BLOCKS.contains(block.getType())) {
+                        block.setType(Material.AIR, false);
+                    }
+                }
+            }
+        }
     }
 
     private boolean beginWeaponCooldown(Player player, ItemStack held, SwordType type) {
         applyCooldownComponent(held, type);
         if (player.hasCooldown(held)) {
-            long seconds = Math.max(1L, (player.getCooldown(held) + 19L) / 20L);
-            player.sendMessage(MessageStyle.prefixed(
-                    "You must wait " + seconds + " seconds before using this ability again."));
+            if (type != SwordType.EXPLOSION) {
+                long seconds = Math.max(1L, (player.getCooldown(held) + 19L) / 20L);
+                player.sendMessage(MessageStyle.prefixed(
+                        "You must wait " + seconds + " seconds before using this ability again."));
+            }
             return false;
         }
         player.setCooldown(held, type.cooldownTicks());
@@ -1095,9 +1147,10 @@ final class SwordManager implements Listener, AutoCloseable {
                 "Sharpness V",
                 "Sweeping Edge III",
                 "Fire Aspect II",
-                "Unbreakable",
                 "Lets you dash through the air!",
-                "Can be activated by shift right clicking while holding the sword"
+                "",
+                "Can be activated by shift right clicking or by",
+                "doing /sword ability while holding the sword."
         )),
         EXECUTIONER("executioner", "☠", "Executioner Sword", NamedTextColor.GOLD,
                 Material.NETHERITE_SWORD, "☠ Executioner Sword", true,
@@ -1209,8 +1262,8 @@ final class SwordManager implements Listener, AutoCloseable {
                     .decoration(TextDecoration.ITALIC, false));
         }
 
-        private boolean isAbilityAxe() {
-            return this == PROTECTION || this == RESISTANCE || this == EXPLOSION;
+        private boolean revealsNativeTooltip() {
+            return this == DASH || this == PROTECTION || this == RESISTANCE || this == EXPLOSION;
         }
 
         private int cooldownTicks() {
