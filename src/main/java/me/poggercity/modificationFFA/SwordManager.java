@@ -648,18 +648,26 @@ final class SwordManager implements Listener, AutoCloseable {
         if (applyResourcePackModel(meta, type.modelId())) {
             changed = true;
         }
-        if ((type == SwordType.VOID || type == SwordType.INHIBITOR)
-                && !standardLore(type).equals(meta.lore())) {
-            meta.lore(standardLore(type));
-            changed = true;
-        }
-        if (type == SwordType.EXECUTIONER
-                && !meta.getPersistentDataContainer().has(
-                        executionerKillsKey, PersistentDataType.INTEGER)) {
-            meta.getPersistentDataContainer().set(
+        if (type == SwordType.EXECUTIONER) {
+            int kills = meta.getPersistentDataContainer().getOrDefault(
                     executionerKillsKey, PersistentDataType.INTEGER, 0);
-            meta.lore(executionerLore(0));
-            changed = true;
+            if (!meta.getPersistentDataContainer().has(
+                    executionerKillsKey, PersistentDataType.INTEGER)) {
+                meta.getPersistentDataContainer().set(
+                        executionerKillsKey, PersistentDataType.INTEGER, kills);
+                changed = true;
+            }
+            List<Component> desiredLore = executionerLore(kills);
+            if (!desiredLore.equals(meta.lore())) {
+                meta.lore(desiredLore);
+                changed = true;
+            }
+        } else if (type != SwordType.KNOCKBACK) {
+            List<Component> desiredLore = standardLore(type);
+            if (!desiredLore.equals(meta.lore())) {
+                meta.lore(desiredLore);
+                changed = true;
+            }
         }
         if (type == SwordType.EXECUTIONER
                 && !meta.getPersistentDataContainer().has(
@@ -720,16 +728,17 @@ final class SwordManager implements Listener, AutoCloseable {
             return List.of(
                     grayLore("Sharpness V"),
                     grayLore("Efficiency V"),
-                    grayLore("Protects you against a number of hits scaling"),
-                    grayLore("with how many players attacked you recently."),
-                    Component.text("The protection lasts for ", NamedTextColor.GRAY)
+                    grayLore("Protects you against a certain amount of"),
+                    grayLore("hits, scaling by the amount of recent attackers"),
+                    Component.text("or for ", NamedTextColor.GRAY)
                             .append(Component.text("15 seconds", NamedTextColor.GREEN))
                             .append(Component.text(".", NamedTextColor.GRAY))
                             .decoration(TextDecoration.ITALIC, false),
                     Component.empty(),
-                    Component.text("Shift right click or use ", NamedTextColor.GRAY)
+                    grayLore("Can be activated shift right clicking or by"),
+                    Component.text("doing ", NamedTextColor.GRAY)
                             .append(Component.text("/sword ability", NamedTextColor.GREEN))
-                            .append(Component.text(" to activate it.", NamedTextColor.GRAY))
+                            .append(Component.text(" while holding the axe.", NamedTextColor.GRAY))
                             .decoration(TextDecoration.ITALIC, false)
             );
         }
@@ -737,12 +746,13 @@ final class SwordManager implements Listener, AutoCloseable {
             return List.of(
                     grayLore("Sharpness V"),
                     grayLore("Efficiency V"),
-                    grayLore("Damages and knocks nearby players away."),
-                    grayLore("You are immune to your own explosion."),
+                    grayLore("Knocks nearby players away and removes"),
+                    grayLore("nearby cobwebs, stone, and obsidian."),
                     Component.empty(),
-                    Component.text("Shift right click or use ", NamedTextColor.GRAY)
+                    grayLore("Can be activated shift right clicking or by"),
+                    Component.text("doing ", NamedTextColor.GRAY)
                             .append(Component.text("/sword ability", NamedTextColor.GREEN))
-                            .append(Component.text(" to activate it.", NamedTextColor.GRAY))
+                            .append(Component.text(" while holding the axe.", NamedTextColor.GRAY))
                             .decoration(TextDecoration.ITALIC, false)
             );
         }
@@ -1096,13 +1106,14 @@ final class SwordManager implements Listener, AutoCloseable {
                 Material.NETHERITE_AXE, null, false, "", List.of(
                 "Sharpness V",
                 "Efficiency V",
-                "Protects you against a number of hits scaling",
-                "with how many players attacked you recently.",
-                "The protection lasts for 15 seconds.",
+                "Protects you against a certain amount of",
+                "hits, scaling by the amount of recent attackers",
+                "or for 15 seconds.",
                 "",
-                "Shift right click or use /sword ability to activate it."
+                "Can be activated shift right clicking or by",
+                "doing /sword ability while holding the axe."
         )),
-        RESISTANCE("resistance", "⛓️", "Axe of Resistance", NamedTextColor.BLUE,
+        RESISTANCE("resistance", "⛓", "Axe of Resistance", NamedTextColor.BLUE,
                 Material.NETHERITE_AXE, null, false, "", List.of(
                 "Sharpness V",
                 "Efficiency V",
@@ -1113,10 +1124,11 @@ final class SwordManager implements Listener, AutoCloseable {
                 Material.NETHERITE_AXE, null, false, "", List.of(
                 "Sharpness V",
                 "Efficiency V",
-                "Damages and knocks nearby players away.",
-                "You are immune to your own explosion.",
+                "Knocks nearby players away and removes",
+                "nearby cobwebs, stone, and obsidian.",
                 "",
-                "Shift right click or use /sword ability to activate it."
+                "Can be activated shift right clicking or by",
+                "doing /sword ability while holding the axe."
         )),
         EXCAVATOR("excavator", "", "Excavator Pickaxe", TextColor.color(0x007AC7),
                 Material.NETHERITE_PICKAXE, null, false, "", List.of(
