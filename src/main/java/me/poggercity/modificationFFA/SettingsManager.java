@@ -7,6 +7,7 @@ import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextDecoration;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
+import org.bukkit.NamespacedKey;
 import org.bukkit.WeatherType;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
@@ -15,6 +16,7 @@ import org.bukkit.event.EventPriority;
 import org.bukkit.event.HandlerList;
 import org.bukkit.event.Listener;
 import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.event.inventory.InventoryCloseEvent;
 import org.bukkit.event.inventory.InventoryDragEvent;
 import org.bukkit.event.player.PlayerBucketEmptyEvent;
 import org.bukkit.event.player.PlayerBucketFillEvent;
@@ -26,6 +28,7 @@ import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.inventory.meta.SkullMeta;
+import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.scheduler.BukkitTask;
 import org.jetbrains.annotations.NotNull;
 
@@ -65,21 +68,28 @@ final class SettingsManager implements Listener, AutoCloseable {
     private static final int GUI_SIZE = 27;
     private static final int OWNER_SLOT = 4;
     private static final int STAFF_SLOT = 22;
+    private static final int ANIMATION_FRAME_COUNT = 120;
     private static final long SAVE_DEBOUNCE_TICKS = 40L;
     private final ModificationFFA plugin;
     private final Path settingsFile;
+    private final NamespacedKey animatedNameKey;
     private final Gson gson = new Gson();
     private final Map<UUID, PlayerSettings> settings = new HashMap<>();
+    private final Map<UUID, SettingsHolder> openSettings = new HashMap<>();
+    private final Map<String, List<Component>> animatedNameFrames = new HashMap<>();
     private final Set<UUID> pendingBucketResyncs = new HashSet<>();
     private final ExecutorService writer;
 
     private BukkitTask saveTask;
+    private BukkitTask animationTask;
+    private int animationFrame;
     private boolean started;
     private boolean closed;
 
     SettingsManager(ModificationFFA plugin) {
         this.plugin = plugin;
         this.settingsFile = plugin.getDataFolder().toPath().resolve("settings.json");
+        this.animatedNameKey = new NamespacedKey(plugin, "settings_animated_name");
         this.writer = Executors.newSingleThreadExecutor(runnable -> {
             Thread thread = new Thread(runnable, "ModificationFFA-Settings-Writer");
             thread.setDaemon(true);
@@ -94,6 +104,8 @@ final class SettingsManager implements Listener, AutoCloseable {
         started = true;
         load();
         plugin.getServer().getPluginManager().registerEvents(this, plugin);
+        animationTask = Bukkit.getScheduler().runTaskTimer(
+                plugin, this::animateOpenSettings, 1L, 1L);
         for (Player player : Bukkit.getOnlinePlayers()) {
             applyPersonalEnvironment(player);
         }
@@ -208,6 +220,14 @@ final class SettingsManager implements Listener, AutoCloseable {
         }
     }
 
+    @EventHandler
+    public void onSettingsClose(InventoryCloseEvent event) {
+        if (event.getInventory().getHolder(false) instanceof SettingsHolder holder
+                && event.getPlayer() instanceof Player player) {
+            openSettings.remove(player.getUniqueId(), holder);
+        }
+    }
+
     @Override
     public void close() {
         if (closed) {
@@ -218,6 +238,10 @@ final class SettingsManager implements Listener, AutoCloseable {
         if (saveTask != null) {
             saveTask.cancel();
             saveTask = null;
+        }
+        if (animationTask != null) {
+            animationTask.cancel();
+            animationTask = null;
         }
 
         SettingsSnapshot finalSnapshot = snapshot();
@@ -232,6 +256,8 @@ final class SettingsManager implements Listener, AutoCloseable {
             plugin.getLogger().warning("Interrupted while saving settings.json.");
         }
         pendingBucketResyncs.clear();
+        openSettings.clear();
+        animatedNameFrames.clear();
         settings.clear();
     }
 
@@ -330,7 +356,8 @@ final class SettingsManager implements Listener, AutoCloseable {
     private void openPage(Player player, int page) {
         SettingsHolder holder = new SettingsHolder(player.getUniqueId(), page);
         Inventory inventory = Bukkit.createInventory(holder, GUI_SIZE,
-                gradient("Modification Settings"));
+                Component.text("Modification Settings", NamedTextColor.DARK_PURPLE)
+                        .decoration(TextDecoration.ITALIC, false));
         holder.inventory = inventory;
 
         ItemStack filler = blankPane(Material.GRAY_STAINED_GLASS_PANE);
@@ -348,6 +375,7 @@ final class SettingsManager implements Listener, AutoCloseable {
             populatePageTwo(inventory, player);
         }
         player.openInventory(inventory);
+        openSettings.put(player.getUniqueId(), holder);
     }
 
     private void populatePageOne(Inventory inventory, Player player) {
@@ -370,7 +398,7 @@ final class SettingsManager implements Listener, AutoCloseable {
         inventory.setItem(15, toggleItem(Material.FEATHER, "Hide Stats",
                 "Hide your stats from other players using /m stats.",
                 bool(value.hideStats, false), HIDE_STATS_PERMISSION, player));
-        inventory.setItem(16, navigationItem(Material.GLASS, "Next Page",
+        inventory.setItem(16, navigationItem(Material.WHITE_STAINED_GLASS_PANE, "Next Page",
                 "Click here to go to the next page."));
     }
 
@@ -384,7 +412,7 @@ final class SettingsManager implements Listener, AutoCloseable {
         inventory.setItem(13, toggleItem(Material.WATER_BUCKET, "Anti-Ghost Water",
                 "Resync your inventory after using water buckets.",
                 bool(value.antiGhostWater, true), ANTI_GHOST_WATER_PERMISSION, player));
-        inventory.setItem(16, navigationItem(Material.GLASS, "Previous Page",
+        inventory.setItem(16, navigationItem(Material.WHITE_STAINED_GLASS_PANE, "Previous Page",
                 "Click here to go to the previous page."));
     }
 
@@ -393,6 +421,8 @@ final class SettingsManager implements Listener, AutoCloseable {
         SkullMeta meta = (SkullMeta) item.getItemMeta();
         meta.setOwningPlayer(player);
         meta.displayName(gradient(player.getName()));
+        meta.getPersistentDataContainer().set(
+                animatedNameKey, PersistentDataType.STRING, player.getName());
         item.setItemMeta(meta);
         return item;
     }
@@ -459,6 +489,8 @@ final class SettingsManager implements Listener, AutoCloseable {
         ItemMeta meta = item.getItemMeta();
         meta.displayName(gradient(name));
         meta.lore(lore);
+        meta.getPersistentDataContainer().set(
+                animatedNameKey, PersistentDataType.STRING, name);
         item.setItemMeta(meta);
         return item;
     }
@@ -491,7 +523,50 @@ final class SettingsManager implements Listener, AutoCloseable {
     }
 
     private Component gradient(String text) {
-        return GradientText.staticGradient(text).decoration(TextDecoration.ITALIC, false);
+        return animatedNameFrames.computeIfAbsent(text, this::createAnimatedNameFrames)
+                .get(animationFrame);
+    }
+
+    private List<Component> createAnimatedNameFrames(String text) {
+        return java.util.stream.IntStream.range(0, ANIMATION_FRAME_COUNT)
+                .mapToObj(frame -> GradientText.animated(text, frame, ANIMATION_FRAME_COUNT)
+                        .decoration(TextDecoration.ITALIC, false))
+                .toList();
+    }
+
+    private void animateOpenSettings() {
+        animationFrame = (animationFrame + 1) % ANIMATION_FRAME_COUNT;
+        var iterator = openSettings.entrySet().iterator();
+        while (iterator.hasNext()) {
+            Map.Entry<UUID, SettingsHolder> entry = iterator.next();
+            Player player = Bukkit.getPlayer(entry.getKey());
+            if (player == null || !player.isOnline()) {
+                iterator.remove();
+                continue;
+            }
+            Inventory inventory = player.getOpenInventory().getTopInventory();
+            SettingsHolder holder = entry.getValue();
+            if (inventory.getHolder(false) != holder
+                    || !holder.ownerId.equals(player.getUniqueId())) {
+                iterator.remove();
+                continue;
+            }
+            for (int slot = 0; slot < inventory.getSize(); slot++) {
+                ItemStack item = inventory.getItem(slot);
+                if (item == null || item.getType().isAir() || !item.hasItemMeta()) {
+                    continue;
+                }
+                ItemMeta meta = item.getItemMeta();
+                String label = meta.getPersistentDataContainer().get(
+                        animatedNameKey, PersistentDataType.STRING);
+                if (label == null) {
+                    continue;
+                }
+                meta.displayName(gradient(label));
+                item.setItemMeta(meta);
+                inventory.setItem(slot, item);
+            }
+        }
     }
 
     private void scheduleBucketResync(Player player) {
