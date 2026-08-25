@@ -19,6 +19,7 @@ import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
+import org.bukkit.scheduler.BukkitTask;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
@@ -34,6 +35,7 @@ final class MergeManager implements Listener, AutoCloseable {
     private static final int CONFIRM_SLOT = 13;
     private static final int RIGHT_INPUT_SLOT = 14;
     private static final int OUTPUT_SLOT = 22;
+    private static final int ANIMATION_FRAME_COUNT = 120;
 
     private final ModificationFFA plugin;
     private final SwordManager swordManager;
@@ -43,14 +45,23 @@ final class MergeManager implements Listener, AutoCloseable {
             Material.GREEN_STAINED_GLASS_PANE, "Confirm Bow Merge");
     private final ItemStack output = createPane(
             Material.WHITE_STAINED_GLASS_PANE, "Merged Punch Bow");
+    private final List<Component> confirmNameFrames;
+    private final List<Component> outputNameFrames;
+
+    private BukkitTask animationTask;
+    private int animationFrame;
 
     MergeManager(ModificationFFA plugin, SwordManager swordManager) {
         this.plugin = plugin;
         this.swordManager = swordManager;
+        this.confirmNameFrames = createAnimatedFrames("Confirm Bow Merge");
+        this.outputNameFrames = createAnimatedFrames("Merged Punch Bow");
     }
 
     void start() {
         plugin.getServer().getPluginManager().registerEvents(this, plugin);
+        animationTask = Bukkit.getScheduler().runTaskTimer(
+                plugin, this::animateOpenMergers, 1L, 1L);
     }
 
     boolean open(CommandSender sender) {
@@ -133,6 +144,10 @@ final class MergeManager implements Listener, AutoCloseable {
 
     @Override
     public void close() {
+        if (animationTask != null) {
+            animationTask.cancel();
+            animationTask = null;
+        }
         for (Map.Entry<UUID, MergeHolder> entry : new ArrayList<>(openMergers.entrySet())) {
             MergeHolder holder = entry.getValue();
             Player player = Bukkit.getPlayer(entry.getKey());
@@ -149,6 +164,40 @@ final class MergeManager implements Listener, AutoCloseable {
             }
         }
         openMergers.clear();
+    }
+
+    private void animateOpenMergers() {
+        animationFrame = (animationFrame + 1) % ANIMATION_FRAME_COUNT;
+        for (Map.Entry<UUID, MergeHolder> entry : openMergers.entrySet()) {
+            Player player = Bukkit.getPlayer(entry.getKey());
+            MergeHolder holder = entry.getValue();
+            if (player == null || !player.isOnline()
+                    || player.getOpenInventory().getTopInventory().getHolder(false) != holder) {
+                continue;
+            }
+            Inventory inventory = holder.getInventory();
+            animateControl(inventory, CONFIRM_SLOT, confirmNameFrames.get(animationFrame));
+            animateControl(inventory, OUTPUT_SLOT, outputNameFrames.get(animationFrame));
+        }
+    }
+
+    private void animateControl(Inventory inventory, int slot, Component displayName) {
+        ItemStack item = inventory.getItem(slot);
+        if (isEmpty(item)) {
+            return;
+        }
+        ItemMeta meta = item.getItemMeta();
+        meta.displayName(displayName.decoration(TextDecoration.ITALIC, false));
+        item.setItemMeta(meta);
+        inventory.setItem(slot, item);
+    }
+
+    private List<Component> createAnimatedFrames(String label) {
+        return java.util.stream.IntStream.range(0, ANIMATION_FRAME_COUNT)
+                .mapToObj(frame -> GradientText.animatedEvenRightToLeft(
+                                label, frame, ANIMATION_FRAME_COUNT)
+                        .decoration(TextDecoration.ITALIC, false))
+                .toList();
     }
 
     private void moveBottomBowIntoInput(InventoryClickEvent event, Inventory top) {
