@@ -4,6 +4,7 @@ import com.google.gson.Gson;
 import com.google.gson.JsonParseException;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
+import net.kyori.adventure.text.format.TextColor;
 import net.kyori.adventure.text.format.TextDecoration;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
@@ -467,7 +468,7 @@ final class SettingsManager implements Listener, AutoCloseable {
         for (PersonalTime option : PersonalTime.values()) {
             lore.add(optionLine(option.displayName, option == current));
         }
-        lore.add(Component.text("[VIP Exclusive]", NamedTextColor.AQUA)
+        lore.add(Component.text("[VIP Exclusive]", TextColor.color(0x00FBAD))
                 .decoration(TextDecoration.ITALIC, false));
         lore.add(permissionLine(PERSONAL_TIME_PERMISSION, player));
         return namedItem(Material.CLOCK, "Personal Time", lore);
@@ -481,7 +482,7 @@ final class SettingsManager implements Listener, AutoCloseable {
         for (PersonalWeather option : PersonalWeather.values()) {
             lore.add(optionLine(option.displayName, option == current));
         }
-        lore.add(Component.text("[VIP Exclusive]", NamedTextColor.AQUA)
+        lore.add(Component.text("[VIP Exclusive]", TextColor.color(0x00FBAD))
                 .decoration(TextDecoration.ITALIC, false));
         lore.add(permissionLine(PERSONAL_WEATHER_PERMISSION, player));
         return namedItem(Material.WIND_CHARGE, "Personal Weather", lore);
