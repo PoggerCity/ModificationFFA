@@ -67,6 +67,8 @@ final class SettingsManager implements Listener, AutoCloseable {
 
     private static final int GUI_SIZE = 27;
     private static final int OWNER_SLOT = 4;
+    private static final int PREVIOUS_PAGE_SLOT = 9;
+    private static final int NEXT_PAGE_SLOT = 17;
     private static final int STAFF_SLOT = 22;
     private static final int ANIMATION_FRAME_COUNT = 120;
     private static final long SAVE_DEBOUNCE_TICKS = 40L;
@@ -276,7 +278,7 @@ final class SettingsManager implements Listener, AutoCloseable {
                     () -> value.explosionShiftClick = !bool(value.explosionShiftClick, true));
             case 15 -> toggle(player, HIDE_STATS_PERMISSION,
                     () -> value.hideStats = !bool(value.hideStats, false));
-            case 16, 17 -> openPage(player, 2);
+            case PREVIOUS_PAGE_SLOT, NEXT_PAGE_SLOT -> openPage(player, 2);
             case STAFF_SLOT -> showStaffComingSoon(player);
             default -> {
                 return;
@@ -322,7 +324,7 @@ final class SettingsManager implements Listener, AutoCloseable {
                         () -> value.antiGhostWater = !bool(value.antiGhostWater, true));
                 openPage(player, 2);
             }
-            case 16, 17 -> openPage(player, 1);
+            case PREVIOUS_PAGE_SLOT, NEXT_PAGE_SLOT -> openPage(player, 1);
             case STAFF_SLOT -> showStaffComingSoon(player);
             default -> {
             }
@@ -364,8 +366,8 @@ final class SettingsManager implements Listener, AutoCloseable {
         for (int slot = 0; slot < GUI_SIZE; slot++) {
             inventory.setItem(slot, filler);
         }
-        inventory.setItem(9, blankPane(Material.WHITE_STAINED_GLASS_PANE));
-        inventory.setItem(17, blankPane(Material.WHITE_STAINED_GLASS_PANE));
+        inventory.setItem(PREVIOUS_PAGE_SLOT, blankPane(Material.WHITE_STAINED_GLASS_PANE));
+        inventory.setItem(NEXT_PAGE_SLOT, blankPane(Material.WHITE_STAINED_GLASS_PANE));
         inventory.setItem(OWNER_SLOT, ownerHead(player));
         inventory.setItem(STAFF_SLOT, staffItem(player));
 
@@ -398,9 +400,13 @@ final class SettingsManager implements Listener, AutoCloseable {
         inventory.setItem(15, toggleItem(Material.FEATHER, "Hide Stats",
                 "Hide your stats from other players using /m stats.",
                 bool(value.hideStats, false), HIDE_STATS_PERMISSION, player));
-        inventory.setItem(16, navigationItem(Material.WHITE_STAINED_GLASS_PANE, "Previous Page",
+        inventory.setItem(16, namedItem(Material.MINECART, "Not Implemented",
+                List.of(gray("More settings will be added in future updates."))));
+        inventory.setItem(PREVIOUS_PAGE_SLOT, navigationItem(
+                Material.WHITE_STAINED_GLASS_PANE, "Previous Page",
                 "Click here to go to the previous page."));
-        inventory.setItem(17, navigationItem(Material.WHITE_STAINED_GLASS_PANE, "Next Page",
+        inventory.setItem(NEXT_PAGE_SLOT, navigationItem(
+                Material.WHITE_STAINED_GLASS_PANE, "Next Page",
                 "Click here to go to the next page."));
     }
 
@@ -414,9 +420,11 @@ final class SettingsManager implements Listener, AutoCloseable {
         inventory.setItem(13, toggleItem(Material.WATER_BUCKET, "Anti-Ghost Water",
                 "Resync your inventory after using water buckets.",
                 bool(value.antiGhostWater, true), ANTI_GHOST_WATER_PERMISSION, player));
-        inventory.setItem(16, navigationItem(Material.WHITE_STAINED_GLASS_PANE, "Previous Page",
+        inventory.setItem(PREVIOUS_PAGE_SLOT, navigationItem(
+                Material.WHITE_STAINED_GLASS_PANE, "Previous Page",
                 "Click here to go to the previous page."));
-        inventory.setItem(17, navigationItem(Material.WHITE_STAINED_GLASS_PANE, "Next Page",
+        inventory.setItem(NEXT_PAGE_SLOT, navigationItem(
+                Material.WHITE_STAINED_GLASS_PANE, "Next Page",
                 "Click here to go to the next page."));
     }
 
