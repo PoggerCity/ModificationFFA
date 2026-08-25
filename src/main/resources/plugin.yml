@@ -46,6 +46,7 @@ commands:
   executioner:
     description: Opens the Executioner Trader.
     usage: /executioner
+    aliases: [execuitoner]
   tokens:
     description: Manages ModificationFFA tokens.
     usage: /tokens give <player> <type> <amount>

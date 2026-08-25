@@ -18,6 +18,7 @@ import org.jetbrains.annotations.NotNull;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -147,7 +148,11 @@ public final class ModificationFFA extends JavaPlugin implements Listener {
             case "spawn" -> spawnManager.handleSpawn(sender, args);
             case "setspawn" -> spawnManager.handleSetSpawn(sender, args);
             case "combat" -> combatManager.handleCommand(sender, args);
-            case "msg" -> socialManager.handleMessage(sender, args);
+            case "msg" -> label.equalsIgnoreCase("m")
+                    && args.length == 1
+                    && args[0].equalsIgnoreCase("executioner")
+                    ? tokenManager.handleExecutioner(sender, new String[0])
+                    : socialManager.handleMessage(sender, args);
             case "reply" -> socialManager.handleReply(sender, args);
             case "continue" -> socialManager.handleContinue(sender, args);
             case "sword" -> swordManager.handleCommand(sender, args);
@@ -191,7 +196,12 @@ public final class ModificationFFA extends JavaPlugin implements Listener {
             return combatManager.tabComplete(sender, args);
         }
         if (command.getName().equalsIgnoreCase("msg")) {
-            return socialManager.tabCompleteMessage(args);
+            List<String> suggestions = new ArrayList<>(socialManager.tabCompleteMessage(args));
+            if (alias.equalsIgnoreCase("m") && args.length == 1
+                    && "executioner".startsWith(args[0].toLowerCase(Locale.ROOT))) {
+                suggestions.add("executioner");
+            }
+            return suggestions.stream().distinct().toList();
         }
         if (command.getName().equalsIgnoreCase("sword")) {
             return swordManager.tabComplete(sender, args);
