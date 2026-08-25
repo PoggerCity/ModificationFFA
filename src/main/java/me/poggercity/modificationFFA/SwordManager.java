@@ -506,7 +506,8 @@ final class SwordManager implements Listener, AutoCloseable {
             meta.addEnchant(Enchantment.SHARPNESS, 5, true);
             meta.addEnchant(Enchantment.EFFICIENCY, 5, true);
             meta.setUnbreakable(true);
-            meta.addItemFlags(ItemFlag.HIDE_ENCHANTS, ItemFlag.HIDE_UNBREAKABLE);
+            meta.addItemFlags(ItemFlag.HIDE_ENCHANTS);
+            meta.removeItemFlags(ItemFlag.HIDE_ATTRIBUTES, ItemFlag.HIDE_UNBREAKABLE);
             meta.lore(standardLore(type));
         } else if (type == SwordType.EXCAVATOR) {
             meta.addEnchant(Enchantment.SILK_TOUCH, 1, true);
@@ -644,6 +645,17 @@ final class SwordManager implements Listener, AutoCloseable {
         boolean shouldBeUnbreakable = type != SwordType.KNOCKBACK;
         boolean changed = !desiredName.equals(meta.displayName())
                 || meta.isUnbreakable() != shouldBeUnbreakable;
+        if (type.isAbilityAxe()) {
+            if (!meta.hasItemFlag(ItemFlag.HIDE_ENCHANTS)) {
+                meta.addItemFlags(ItemFlag.HIDE_ENCHANTS);
+                changed = true;
+            }
+            if (meta.hasItemFlag(ItemFlag.HIDE_ATTRIBUTES)
+                    || meta.hasItemFlag(ItemFlag.HIDE_UNBREAKABLE)) {
+                meta.removeItemFlags(ItemFlag.HIDE_ATTRIBUTES, ItemFlag.HIDE_UNBREAKABLE);
+                changed = true;
+            }
+        }
         if (applyResourcePackModel(meta, type.modelId())) {
             changed = true;
         }
@@ -1195,6 +1207,10 @@ final class SwordManager implements Listener, AutoCloseable {
             return name.append(Component.text(label, color)
                     .decoration(TextDecoration.BOLD, false)
                     .decoration(TextDecoration.ITALIC, false));
+        }
+
+        private boolean isAbilityAxe() {
+            return this == PROTECTION || this == RESISTANCE || this == EXPLOSION;
         }
 
         private int cooldownTicks() {

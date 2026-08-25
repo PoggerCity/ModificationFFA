@@ -78,7 +78,7 @@ final class MergeManager implements Listener, AutoCloseable {
         Inventory inventory = Bukkit.createInventory(
                 holder,
                 INVENTORY_SIZE,
-                GradientText.staticGradient("Punch Bow Merger")
+                Component.text("Punch Bow Merger", NamedTextColor.DARK_PURPLE)
                         .decoration(TextDecoration.ITALIC, false)
         );
         holder.setInventory(inventory);
