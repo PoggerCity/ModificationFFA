@@ -276,7 +276,7 @@ final class SettingsManager implements Listener, AutoCloseable {
                     () -> value.explosionShiftClick = !bool(value.explosionShiftClick, true));
             case 15 -> toggle(player, HIDE_STATS_PERMISSION,
                     () -> value.hideStats = !bool(value.hideStats, false));
-            case 16 -> openPage(player, 2);
+            case 16, 17 -> openPage(player, 2);
             case STAFF_SLOT -> showStaffComingSoon(player);
             default -> {
                 return;
@@ -322,7 +322,7 @@ final class SettingsManager implements Listener, AutoCloseable {
                         () -> value.antiGhostWater = !bool(value.antiGhostWater, true));
                 openPage(player, 2);
             }
-            case 16 -> openPage(player, 1);
+            case 16, 17 -> openPage(player, 1);
             case STAFF_SLOT -> showStaffComingSoon(player);
             default -> {
             }
@@ -398,7 +398,9 @@ final class SettingsManager implements Listener, AutoCloseable {
         inventory.setItem(15, toggleItem(Material.FEATHER, "Hide Stats",
                 "Hide your stats from other players using /m stats.",
                 bool(value.hideStats, false), HIDE_STATS_PERMISSION, player));
-        inventory.setItem(16, navigationItem(Material.WHITE_STAINED_GLASS_PANE, "Next Page",
+        inventory.setItem(16, navigationItem(Material.WHITE_STAINED_GLASS_PANE, "Previous Page",
+                "Click here to go to the previous page."));
+        inventory.setItem(17, navigationItem(Material.WHITE_STAINED_GLASS_PANE, "Next Page",
                 "Click here to go to the next page."));
     }
 
@@ -414,6 +416,8 @@ final class SettingsManager implements Listener, AutoCloseable {
                 bool(value.antiGhostWater, true), ANTI_GHOST_WATER_PERMISSION, player));
         inventory.setItem(16, navigationItem(Material.WHITE_STAINED_GLASS_PANE, "Previous Page",
                 "Click here to go to the previous page."));
+        inventory.setItem(17, navigationItem(Material.WHITE_STAINED_GLASS_PANE, "Next Page",
+                "Click here to go to the next page."));
     }
 
     private ItemStack ownerHead(Player player) {
@@ -529,7 +533,8 @@ final class SettingsManager implements Listener, AutoCloseable {
 
     private List<Component> createAnimatedNameFrames(String text) {
         return java.util.stream.IntStream.range(0, ANIMATION_FRAME_COUNT)
-                .mapToObj(frame -> GradientText.animated(text, frame, ANIMATION_FRAME_COUNT)
+                .mapToObj(frame -> GradientText.animatedEvenRightToLeft(
+                                text, frame, ANIMATION_FRAME_COUNT)
                         .decoration(TextDecoration.ITALIC, false))
                 .toList();
     }

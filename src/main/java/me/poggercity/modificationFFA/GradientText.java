@@ -14,6 +14,18 @@ final class GradientText {
             0xFF9200,
             0xFFD21A
     };
+    private static final int[] SETTINGS_COLOR_LOOP = {
+            0x8C00C3,
+            0xB000B8,
+            0xD000AE,
+            0xEE247F,
+            0xFF7A20,
+            0xFFD21A,
+            0xFF7A20,
+            0xEE247F,
+            0xD000AE,
+            0xB000B8
+    };
 
     private GradientText() {
     }
@@ -50,6 +62,39 @@ final class GradientText {
             ));
         }
         return result;
+    }
+
+    static Component animatedEvenRightToLeft(String text, int frame, int frameCount) {
+        if (frameCount <= 0) {
+            throw new IllegalArgumentException("frameCount must be positive");
+        }
+
+        int[] codePoints = text.codePoints().toArray();
+        Component result = Component.empty();
+        double globalPhase = Math.floorMod(frame, frameCount) / (double) frameCount;
+        for (int index = 0; index < codePoints.length; index++) {
+            double characterPhase = (index / (double) Math.max(1, codePoints.length - 1)) * 0.38D;
+            double localPhase = wrap(characterPhase + globalPhase);
+            result = result.append(Component.text(
+                    new String(Character.toChars(codePoints[index])),
+                    settingsColorAt(localPhase)
+            ));
+        }
+        return result;
+    }
+
+    private static TextColor settingsColorAt(double phase) {
+        double scaled = wrap(phase) * SETTINGS_COLOR_LOOP.length;
+        int lowerIndex = (int) Math.floor(scaled);
+        int upperIndex = (lowerIndex + 1) % SETTINGS_COLOR_LOOP.length;
+        double blend = smootherStep(scaled - lowerIndex);
+        int lower = SETTINGS_COLOR_LOOP[lowerIndex];
+        int upper = SETTINGS_COLOR_LOOP[upperIndex];
+        return TextColor.color(
+                blendChannel(lower >> 16, upper >> 16, blend),
+                blendChannel(lower >> 8, upper >> 8, blend),
+                blendChannel(lower, upper, blend)
+        );
     }
 
     private static double wrap(double value) {
