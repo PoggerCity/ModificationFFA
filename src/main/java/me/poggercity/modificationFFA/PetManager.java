@@ -1,8 +1,6 @@
 package me.poggercity.modificationFFA;
 
 import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.format.NamedTextColor;
-import net.kyori.adventure.text.format.TextColor;
 import net.kyori.adventure.text.format.TextDecoration;
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import org.bukkit.Bukkit;
@@ -44,8 +42,8 @@ import java.util.UUID;
 final class PetManager implements Listener, AutoCloseable {
 
     private static final String LIST_PERMISSION = "modificationffa.pet.list";
-    private static final int MAX_RAW_NAME_LENGTH = 512;
-    private static final int MAX_VISIBLE_NAME_LENGTH = 32;
+    private static final int MAX_RAW_NAME_LENGTH = 2_048;
+    private static final int MAX_VISIBLE_NAME_LENGTH = 64;
     private static final long FOLLOW_INTERVAL_TICKS = 10L;
     private static final double PATHFIND_DISTANCE_SQUARED = 9.0D;
     private static final double TELEPORT_DISTANCE_SQUARED = 144.0D;
@@ -211,9 +209,9 @@ final class PetManager implements Listener, AutoCloseable {
             messages.sendPrefixed(player, "pet.name.raw-too-long");
             return;
         }
-        Component name = parseRgbName(rawName);
+        Component name = PetNameFormatter.format(rawName);
         String visibleName = PlainTextComponentSerializer.plainText().serialize(name).trim();
-        if (visibleName.isEmpty() || visibleName.length() > MAX_VISIBLE_NAME_LENGTH) {
+        if (visibleName.isEmpty() || visibleName.codePointCount(0, visibleName.length()) > MAX_VISIBLE_NAME_LENGTH) {
             messages.sendPrefixed(player, "pet.name.visible-length");
             return;
         }
@@ -357,45 +355,6 @@ final class PetManager implements Listener, AutoCloseable {
             messages.send(sender, "pet.help.list");
         }
         messages.send(sender, "pet.help.interaction");
-    }
-
-    private Component parseRgbName(String input) {
-        Component result = Component.empty();
-        TextColor color = NamedTextColor.WHITE;
-        StringBuilder text = new StringBuilder();
-        for (int index = 0; index < input.length(); index++) {
-            if (index + 8 <= input.length() && input.charAt(index) == '&'
-                    && input.charAt(index + 1) == '#') {
-                String hex = input.substring(index + 2, index + 8);
-                if (isHex(hex)) {
-                    result = appendSegment(result, text, color);
-                    color = TextColor.color(Integer.parseInt(hex, 16));
-                    index += 7;
-                    continue;
-                }
-            }
-            text.append(input.charAt(index));
-        }
-        return appendSegment(result, text, color).decoration(TextDecoration.ITALIC, false);
-    }
-
-    private Component appendSegment(Component result, StringBuilder text, TextColor color) {
-        if (text.isEmpty()) {
-            return result;
-        }
-        Component segment = Component.text(text.toString(), color)
-                .decoration(TextDecoration.ITALIC, false);
-        text.setLength(0);
-        return result.append(segment);
-    }
-
-    private boolean isHex(String value) {
-        for (int index = 0; index < value.length(); index++) {
-            if (Character.digit(value.charAt(index), 16) < 0) {
-                return false;
-            }
-        }
-        return true;
     }
 
     private List<String> filter(List<String> options, String partial) {

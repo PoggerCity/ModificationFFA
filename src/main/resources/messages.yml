@@ -212,7 +212,7 @@ pet:
   unknown: "&7Unknown pet. Use &arabbit&7, &afrog&7, &acat&7, or &awolf&7."
   name:
     raw-too-long: "&7That pet name is too long."
-    visible-length: "&7Pet names must contain between &a1 &7and &a32 &7visible characters."
+    visible-length: "&7Pet names must contain between &a1 &7and &a64 &7visible characters."
   spawn-failed: "&7That pet could not be spawned."
   spawned: "&7You spawned your &a{type} &7pet."
   none-active: "&7You do not have a pet to despawn."
