@@ -297,7 +297,7 @@ final class SwordManager implements Listener, AutoCloseable {
         }
     }
 
-    @EventHandler(priority = EventPriority.NORMAL, ignoreCancelled = true)
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = false)
     public void onAbilityInteract(PlayerInteractEvent event) {
         if (event.getHand() != EquipmentSlot.HAND || !event.getPlayer().isSneaking()) {
             return;
