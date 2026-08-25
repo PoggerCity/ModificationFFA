@@ -43,6 +43,10 @@ final class SwordManager implements Listener, AutoCloseable {
     private static final double VOID_CHANCE = 0.10D;
     private static final double EXECUTIONER_CHANCE = 0.20D;
     private static final long DASH_COOLDOWN_MILLIS = 20_000L;
+    private static final String PUNCH_BOW_ID = "punch_bow";
+    private static final String PUNCH_BOW_NAME = "Punch Bow";
+    private static final List<String> GIVE_TYPES = List.of(
+            "strike", "dash", "executioner", "void", PUNCH_BOW_ID);
 
     private final ModificationFFA plugin;
     private final NamespacedKey swordTypeKey;
@@ -97,16 +101,18 @@ final class SwordManager implements Listener, AutoCloseable {
 
         if (args.length == 2) {
             String partial = args[1].toLowerCase(Locale.ROOT);
-            return Bukkit.getOnlinePlayers().stream()
-                    .map(Player::getName)
+            List<String> options = new ArrayList<>(GIVE_TYPES);
+            options.addAll(Bukkit.getOnlinePlayers().stream().map(Player::getName).toList());
+            return options.stream()
                     .filter(name -> name.toLowerCase(Locale.ROOT).startsWith(partial))
+                    .distinct()
                     .sorted(String.CASE_INSENSITIVE_ORDER)
                     .toList();
         }
 
         if (args.length == 3) {
             String partial = args[2].toLowerCase(Locale.ROOT);
-            return SwordType.names().stream().filter(name -> name.startsWith(partial)).toList();
+            return GIVE_TYPES.stream().filter(name -> name.startsWith(partial)).toList();
         }
         return List.of();
     }
@@ -198,37 +204,47 @@ final class SwordManager implements Listener, AutoCloseable {
             sender.sendMessage(MessageStyle.permissionDenied(GIVE_PERMISSION));
             return;
         }
-        if (args.length != 3) {
+        Player target;
+        String requestedType;
+        if (args.length == 2 && sender instanceof Player player) {
+            target = player;
+            requestedType = args[1];
+        } else if (args.length == 3) {
+            target = Bukkit.getPlayerExact(args[1]);
+            requestedType = args[2];
+        } else {
             sender.sendMessage(MessageStyle.prefixed(
-                    "Usage: /sword give <player> <strike|dash|executioner|void>"));
+                    "Usage: /sword give [player] <strike|dash|executioner|void|punch_bow>"));
             return;
         }
 
-        Player target = Bukkit.getPlayerExact(args[1]);
         if (target == null) {
             sender.sendMessage(MessageStyle.prefixed("That player is not online."));
             return;
         }
-        SwordType type = SwordType.fromName(args[2]);
-        if (type == null) {
+        SwordType type = SwordType.fromName(requestedType);
+        boolean punchBow = PUNCH_BOW_ID.equalsIgnoreCase(requestedType);
+        if (type == null && !punchBow) {
             sender.sendMessage(MessageStyle.prefixed(
-                    "Unknown sword. Available: strike, dash, executioner, void."));
+                    "Unknown item. Available: strike, dash, executioner, void, punch_bow."));
             return;
         }
 
-        ItemStack sword = createSword(type);
-        Map<Integer, ItemStack> overflow = target.getInventory().addItem(sword);
+        ItemStack reward = punchBow ? createPunchBow() : createSword(type);
+        String itemName = punchBow ? PUNCH_BOW_NAME : type.itemName;
+        TextColor itemColor = punchBow ? NamedTextColor.DARK_PURPLE : type.color;
+        Map<Integer, ItemStack> overflow = target.getInventory().addItem(reward);
         for (ItemStack item : overflow.values()) {
             target.getWorld().dropItemNaturally(target.getLocation(), item);
         }
         target.sendMessage(MessageStyle.prefix()
                 .append(Component.text("You have received the ", NamedTextColor.GRAY))
-                .append(Component.text(type.itemName, type.color))
+                .append(Component.text(itemName, itemColor))
                 .append(Component.text("!", NamedTextColor.GRAY)));
         if (!sender.equals(target)) {
             sender.sendMessage(MessageStyle.prefix()
                     .append(Component.text("Gave ", NamedTextColor.GRAY))
-                    .append(Component.text(type.itemName, type.color))
+                    .append(Component.text(itemName, itemColor))
                     .append(Component.text(" to ", NamedTextColor.GRAY))
                     .append(Component.text(target.getName(), NamedTextColor.GREEN))
                     .append(Component.text(".", NamedTextColor.GRAY)));
@@ -252,6 +268,22 @@ final class SwordManager implements Listener, AutoCloseable {
         meta.getPersistentDataContainer().set(swordTypeKey, PersistentDataType.STRING, type.id);
         sword.setItemMeta(meta);
         return sword;
+    }
+
+    private ItemStack createPunchBow() {
+        ItemStack bow = new ItemStack(Material.BOW);
+        ItemMeta meta = bow.getItemMeta();
+        meta.displayName(Component.text(PUNCH_BOW_NAME, NamedTextColor.DARK_PURPLE)
+                .decoration(TextDecoration.ITALIC, false));
+        meta.addEnchant(Enchantment.POWER, 5, true);
+        meta.addEnchant(Enchantment.FLAME, 1, true);
+        meta.addEnchant(Enchantment.PUNCH, 2, true);
+        meta.addEnchant(Enchantment.UNBREAKING, 3, true);
+        meta.addEnchant(Enchantment.INFINITY, 1, true);
+        meta.getPersistentDataContainer().set(
+                swordTypeKey, PersistentDataType.STRING, PUNCH_BOW_ID);
+        bow.setItemMeta(meta);
+        return bow;
     }
 
     private SwordType swordType(ItemStack item) {
@@ -394,8 +426,5 @@ final class SwordManager implements Listener, AutoCloseable {
             return null;
         }
 
-        private static List<String> names() {
-            return java.util.Arrays.stream(values()).map(type -> type.id).toList();
-        }
     }
 }
