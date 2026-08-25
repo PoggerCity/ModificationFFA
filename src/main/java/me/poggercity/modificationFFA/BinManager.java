@@ -63,7 +63,7 @@ final class BinManager implements Listener, AutoCloseable {
 
     boolean open(CommandSender sender) {
         if (!(sender instanceof Player player)) {
-            sender.sendMessage(Component.text("This command can only be used by players.", MessageStyle.text()));
+            sender.sendMessage(MessageStyle.prefixedMessage("core.players-only"));
             return true;
         }
 

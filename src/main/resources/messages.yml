@@ -1,0 +1,340 @@
+core:
+  players-only: "&7This command can only be used by players."
+  no-permission: "&7You do not have permission &a({permission}) &7to do that."
+  player-offline: "&7Player &a{player} &7is not online."
+  invalid-number: "&7Please enter a valid number."
+  reloaded: "&7Configuration and messages reloaded."
+  reload-failed: "&cThe messages file could not be loaded. Check the console."
+  aliases-restart: "&7Command alias changes will apply after the next restart."
+  wait: "&7Please wait &a{seconds}s &7before doing that again."
+  save-failed: "&cThat change could not be saved. Check the console."
+
+modification:
+  info:
+    - "&7The server is running &a{plugin} &7v&a{version}"
+    - "&7The plugin was created by: &a{author}"
+    - "&7Run &a{root} help &7for sub commands."
+  help:
+    title: "&7------ &a{root} help &7------"
+    lines:
+      - "&8- &a{root} help &7- The command to display helpful information."
+      - "&8- &a{root} settings &7- Lets you access your settings."
+      - "&8- &a{root} stats &7- Lets you view player statistics."
+      - "&8- &a{root} find &7- Find the location of a player."
+      - "&8- &a{root} bin &7- Open the {menu} Bin."
+      - "&8- &a{root} clear &7- Clear your inventory."
+      - "&8- &a{root} ping &7- Check a player's ping to the server."
+      - "&8- &a{root} executioner &7- Trade Executioner heads for kill tokens."
+      - "&8- &a{root} merge &7- Merge your Punch Bows' durability."
+      - "&8- &a/pet help &7- View and manage your cosmetic pet."
+    reload: "&8- &a{root} reload &7- Reload config.yml and messages.yml."
+
+utility:
+  player-offline: "&a{player}&7 is not online."
+  clear:
+    usage: "&7Usage: /clear [player]"
+    console-usage: "&7Usage: /clear <player>"
+    self: "&7You have cleared your inventory."
+    other: "&7You have cleared &a{player}&7's inventory."
+  ping:
+    usage: "&7Usage: /ping [player]"
+    console-usage: "&7Usage: /ping <player>"
+    result: "&a{player}&7's ping is &a{ping}ms&7."
+
+arena:
+  storage-unhealthy: "&7arenas.json could not be loaded safely. Check the console before editing arenas."
+  usage:
+    create: "&7Usage: &a/arena create <name>"
+    delete: "&7Usage: &a/arena delete <name>"
+    edit: "&7Usage: &a/arena edit <setting> <arena> <true|false>"
+  wand-received: "&7You have received the arena wand."
+  wand:
+    name: "&dArena Wand"
+    left-click: "&7Left-click to set position 1."
+    right-click: "&7Right-click to set position 2."
+  select-first: "&7Select both corners with the arena wand first."
+  same-world: "&7Both corners must be in the same world."
+  position-set: "&7Position &a{position} &7set to &a{x}, {y}, {z} &7in &a{world}&7."
+  already-exists: "&7An arena named &a{name} &7already exists."
+  not-found: "&7Arena &a{name} &7does not exist."
+  created: "&7Created arena &a{name}&7."
+  deleted: "&7Deleted arena &a{name}&7."
+  save-failed: "&cThe arena could not be saved. Check the console."
+  delete-failed: "&cThe arena deletion could not be saved. Check the console."
+  edit-failed: "&cThe arena setting could not be saved. Check the console."
+  setting-invalid: "&7That arena setting does not exist."
+  setting-value: "&7The setting must be &atrue &7or &cfalse&7."
+  setting-updated: "&7Set &a{setting} &7to {value} &7for &a{arena}&7."
+  help:
+    title: "&aArena help"
+    lines:
+      - "&8- &a/arena wand &7- Gives you the arena selection wand."
+      - "&8- &a/arena create <name> &7- Creates an arena from your selection."
+      - "&8- &a/arena delete <name> &7- Deletes an arena."
+      - "&8- &a/arena edit <name> <setting> <true|false> &7- Changes an arena setting."
+      - "&8- &a/arena edit <setting> <name> <true|false> &7- Changes a setting using flag-first syntax."
+  denied:
+    pvp: "&7PvP is disabled in this arena."
+    block-break: "&7You are not allowed to break blocks here."
+    block-place: "&7You are not allowed to place blocks here."
+    interact: "&7You are not allowed to interact with blocks here."
+    wind-charge: "&7Wind charges are disabled in this arena."
+    item-drops: "&7You cannot drop items in this arena."
+    item-pickup: "&7You cannot pick up items in this arena."
+
+kit:
+  main-empty: "&7The main kit cannot be empty."
+  main-missing: "&7The main kit has not been configured yet."
+  main-saved: "&7You have saved the main kit."
+  main-save-failed: "&cThe main kit could not be saved. Check the console."
+  saved: "&7You have saved your kit."
+  loaded: "&7You have loaded your kit."
+  deleted: "&7You have deleted your kit."
+  load-wait: "&7You need to wait &a{seconds} &7before you can load your kit again."
+  busy: "&7Please wait for your current kit operation to finish."
+  starting: "&7The kit database is still starting. Please try again."
+  purchased-items: "&7Your kit has not been loaded because your inventory has purchased items in it."
+  invalid-material: "&7You cannot save a kit with a &a{material} &7material in it."
+  invalid-item: "&7You cannot save a modified &a{item} &7item."
+  too-many-items: "&7Your kit contains more items than the main kit."
+  too-much-durability: "&7Your kit contains an item with more durability than the main kit."
+  mismatch: "&7Your kit does not match the main kit."
+  save-failed: "&cYour kit could not be saved. Check the console."
+  load-failed: "&cYour kit could not be loaded. Check the console."
+  delete-failed: "&cYour kit could not be deleted. Check the console."
+  help:
+    title: "&aKit help"
+    lines:
+      - "&8- &a/kit help &7- The command to display helpful information."
+      - "&8- &a/kit save &7- Saves your current inventory as your kit."
+      - "&8- &a/kit load &7- Loads your saved kit into your inventory."
+      - "&8- &a/kit delete &7- Deletes your saved kit."
+    admin: "&8- &a/kit adminsave &7- Saves your inventory as the main kit."
+
+social:
+  msg-usage: "&7Usage: &a/msg <player> <message>"
+  reply-usage: "&7Usage: &a/reply <message>"
+  continue-usage: "&7Usage: &a/continue <message>"
+  self-message: "&7You cannot message yourself."
+  nobody-to-reply: "&7You have nobody to reply to."
+  no-conversation: "&7You have no conversation to continue."
+  conversation-offline: "&7That player is no longer online."
+  private-message: "&a{sender} &8» &a{receiver} &8| &7{message}"
+  join: "&8[&a+&8] &7{player}"
+  quit: "&8[&c-&8] &7{player}"
+
+links:
+  separator: "&7-----------------------------------------------"
+  cooldown: "&7Please wait &a{seconds}s &7before using another link command."
+  discord:
+    lines:
+      - "&7Make sure to join our Discord for the latest news and updates!"
+      - "&7It will also let you talk in SVC on the network."
+    label: "&7Discord: &a{link}"
+    hover: "&7Click to join our Discord"
+  store:
+    lines:
+      - "&7Support the server by purchasing ranks and perks from our store!"
+    label: "&7Store: &a{link}"
+    hover: "&7Click to open our store"
+
+reminders:
+  separator: "&7-----------------------------------------------"
+  discord:
+    - "&7Join our Discord for news, updates, and community chat."
+    - "&7Discord: &a{link}"
+  store:
+    - "&7Support the server by purchasing ranks and perks."
+    - "&7Store: &a{link}"
+
+settings:
+  staff-coming-soon: "&7Staff Settings are coming soon."
+
+stats:
+  usage: "&7Usage: &a/stats [player]"
+  console-usage: "&7Usage: &a/stats <player>"
+  not-recorded: "&a{player} &7has no recorded stats."
+  hidden: "&a{player} &7has hidden their stats."
+  title: "&7------------- &a{player}'s Stats &7-------------"
+  lines:
+    kills: "&7- Kills: &a{value}"
+    deaths: "&7- Deaths: &a{value}"
+    kd-ratio: "&7- K/D Ratio: &a{value}"
+    killstreak: "&7- Killstreak: &a{value}"
+    best-killstreak: "&7- Best Killstreak: &a{value}"
+    cobwebs: "&7- Cobwebs: &a{value}"
+    pearls: "&7- Pearls: &a{value}"
+    golden-apples: "&7- Golden Apples: &a{value}"
+    enchanted-golden-apples: "&7- Enchanted Golden Apples: &a{value}"
+    chorus: "&7- Chorus: &a{value}"
+    experience-bottles: "&7- Experience Bottles: &a{value}"
+    swings: "&7- Swings: &a{value}"
+    hits: "&7- Hits: &a{value}"
+    accuracy: "&7- Accuracy: &a{value}"
+
+tokens:
+  usage: "&7Usage: &a/tokens give <player> <type> <amount>"
+  player-offline: "&7That player is not online."
+  unknown-type: "&7Unknown token type."
+  amount-range: "&7Amount must be between &a1 &7and &a{maximum}&7."
+  given: "&7Gave &a{amount} {type} &7to &a{player}&7."
+  executioner-usage: "&7Usage: &a/executioner"
+  node-shift-delete: "&7Shift click to delete it."
+  node-usage: "&7Usage: &a/{command} give <player> <type>"
+  node-unsupported: "&7That is not a supported &a{kind} &7type."
+  node-given: "&7Gave a &a{material} &7resource node to &a{player}&7."
+  no-heads: "&7You do not have any executioner heads to trade."
+  traded-one: "&7You traded &a1 executioner head &7for &a1 kill token&7."
+  traded-many: "&7You traded &a{amount} executioner heads &7for &a{amount} kill tokens&7."
+
+sword:
+  holding-required: "&7You must be holding a {plugin} weapon."
+  automatic-ability: "&7This weapon's ability activates automatically while fighting."
+  give-usage: "&7Usage: &a/sword give [player] <strike|dash|executioner|void|lifesteal|inhibitor|knockback|protection|resistance|explosion|excavator|punch_bow>"
+  player-offline: "&7That player is not online."
+  unknown-item: "&7Unknown item. Available: &astrike, dash, executioner, void, lifesteal, inhibitor, knockback, protection, resistance, explosion, excavator, punch_bow&7."
+  received: "&7You have received the {item}&7!"
+  given: "&7Gave {item} &7to {player}&7."
+  dashed: "&7You have dashed through the air!"
+  protection-one: "&7Your protection is active for &a15 seconds &7and can block &a{hits} hit&7."
+  protection-many: "&7Your protection is active for &a15 seconds &7and can block &a{hits} hits&7."
+  cooldown: "&7You must wait &a{seconds} seconds &7before using this ability again."
+  lifesteal-healed: "&c&l❤&r &7Your Lifesteal Sword restored &a2 hearts&7!"
+  help:
+    title: "&7------ &asword help &7------"
+    command: "&8- &a/sword help &7- The command to display helpful information."
+    ability: "&8- &a/sword ability &7- Activates your held weapon's ability."
+    give: "&8- &a/sword give &7- Gives a {plugin} weapon to a player."
+
+pet:
+  usage:
+    spawn: "&7Usage: &a/pet spawn <rabbit|frog|cat|wolf> <name>"
+  unknown: "&7Unknown pet. Use &arabbit&7, &afrog&7, &acat&7, or &awolf&7."
+  name:
+    raw-too-long: "&7That pet name is too long."
+    visible-length: "&7Pet names must contain between &a1 &7and &a32 &7visible characters."
+  spawn-failed: "&7That pet could not be spawned."
+  spawned: "&7You spawned your &a{type} &7pet."
+  none-active: "&7You do not have a pet to despawn."
+  despawned: "&7You have despawned your pet."
+  available: "&7Available pets: &arabbit, frog, cat, wolf"
+  sitting: "&7Your pet is now sitting."
+  following: "&7Your pet is now following you."
+  help:
+    title: "&7------ &apet help &7------"
+    lines:
+      - "&7- &a/pet help &7- The command to display helpful information."
+      - "&7- &a/pet spawn &7- Spawn your permitted pet with an RGB name."
+      - "&7- &a/pet despawn &7- Despawn your active pet."
+    list: "&7- &a/pet list &7- Get a list of all the pets."
+    interaction: "&7Right click your pet to make it sit or follow."
+
+biome:
+  find:
+    usage: "&7Usage: &a/find <player>"
+    result: "&a{player} &7is at &a{coordinates} ({biome})&7."
+  usage:
+    create: "&7Usage: &a/biome create <name>"
+    delete: "&7Usage: &a/biome delete <name>"
+  wand:
+    name: "&dBiome Wand"
+    left-click: "&7Left-click to set position 1."
+    right-click: "&7Right-click to set position 2."
+  wand-received: "&7You have received the biome wand."
+  select-first: "&7Select both corners with the biome wand first."
+  same-world: "&7Both corners must be in the same world."
+  position-set: "&7Position &a{position} &7set to &a{x}, {y}, {z} &7in &a{world}&7."
+  created: "&7Created biome &a{name}&7. Newer overlapping biomes take priority."
+  not-found: "&7Biome &a{name} &7does not exist."
+  deleted: "&7Deleted biome &a{name}&7."
+  list:
+    empty: "&7No custom biomes have been created."
+    title: "&aCustom biomes"
+    entry: "&8- &a{name} &7({world})"
+  help:
+    title: "&aBiome help"
+    list: "&8- &a/biome list &7- Lists all custom biomes."
+    admin:
+      - "&8- &a/biome wand &7- Gives you the region-selection wand."
+      - "&8- &a/biome create <name> &7- Creates a biome from your selection."
+      - "&8- &a/biome delete <name> &7- Deletes a custom biome."
+
+protect-arena:
+  unavailable: "&7Protected arenas are unavailable. Check the console."
+  usage:
+    create: "&7Usage: &a/protectarena create <name>"
+    delete: "&7Usage: &a/protectarena delete <name>"
+    exempt-create: "&7Usage: &a/protectarena exempt create <arena> <name>"
+    exempt-delete: "&7Usage: &a/protectarena exempt delete <arena> <name>"
+  selection-invalid: "&7Select two corners in one world and use a name containing only letters, numbers, &a_ &7or &a-&7."
+  already-exists: "&7A protected arena with that name already exists."
+  created: "&7Created protected arena &a{name}&7."
+  not-found-or-busy: "&7That protected arena does not exist or is already being changed."
+  deleted: "&7Deleted protected arena &a{name}&7."
+  position-set: "&7Selected the &a{position} {mode} &7corner at &a{x}, {y}, {z}&7."
+  save-failed: "&cThe protected arena change could not be saved."
+  wand:
+    players-only: "&7Only players can receive selection wands."
+    arena-name: "&dProtected Arena Wand"
+    exemption-name: "&dProtected Exemption Wand"
+    left-click: "&7Left-click: first corner"
+    right-click: "&7Right-click: second corner"
+    received: "&7You received the &a{mode} &7selection wand."
+  exemption:
+    help: "&7Use &a/protectarena exempt <wand|create|delete>&7."
+    selection-invalid: "&7Select two exemption corners and provide a valid protected arena and name."
+    outside: "&7The exemption must be completely inside its protected arena."
+    already-exists-or-busy: "&7That exemption already exists or is being changed."
+    created: "&7Created exemption &a{name} &7inside &a{arena}&7."
+    not-found-or-busy: "&7That exemption does not exist or is already being changed."
+    deleted: "&7Deleted exemption &a{name}&7."
+  help:
+    - "&7----- &aprotect arena help &7-----"
+    - "&a/protectarena wand"
+    - "&a/protectarena create <name>"
+    - "&a/protectarena delete <name>"
+    - "&a/protectarena exempt wand"
+    - "&a/protectarena exempt create <arena> <name>"
+    - "&a/protectarena exempt delete <arena> <name>"
+
+combat:
+  usage:
+    timer: "&7Usage: /combat timer"
+    tag: "&7Usage: /combat tag <player>"
+    untag: "&7Usage: /combat untag <player>"
+    command-whitelist: "&7Usage: /combat commandwhitelist <add|delete> <command> or list."
+  timer: "&7Combat Tag: &a{seconds}"
+  not-tagged: "&7You are not in combat."
+  ended: "&7You are no longer in combat."
+  command-blocked: "&7You cannot use that command while in combat."
+  logger-died: "&7Your combat logger died. Your inventory has been lost."
+  forced-tag: "&a{player} &7is now in combat."
+  forced-untag: "&a{player} &7is no longer in combat."
+  already-untagged: "&a{player} &7was not in combat."
+  whitelist:
+    list: "&7Combat command whitelist: {commands}"
+    invalid-command: "&7Enter one root command without / or spaces."
+    added: "&7/{command} is now allowed in combat."
+    already-added: "&7/{command} is already allowed in combat."
+    combat-required: "&7/combat must remain allowed so the combat timer can be checked."
+    removed: "&7/{command} is no longer allowed in combat."
+    not-listed: "&7/{command} was not in the combat command whitelist."
+  help:
+    title: "&7------ &aCombat Help &7------"
+    help: "&7- &a/combat help &7- The command to display helpful information."
+    timer: "&7- &a/combat timer &7- Check the time left you have in combat."
+    tag: "&7- &a/combat tag <player> &7- Force a player into combat."
+    untag: "&7- &a/combat untag <player> &7- Untag a player from combat."
+    command-whitelist: "&7- &a/combat commandwhitelist <add|delete|list> &7- Configure commands players may use in combat."
+
+spawn:
+  usage:
+    spawn: "&7Usage: /spawn"
+    setspawn: "&7Usage: /setspawn"
+  not-set: "&7The server spawn has not been set."
+  already-teleporting: "&7You are already teleporting to spawn."
+  set: "&7The server spawn has been set."
+  save-failed: "&cThe server spawn could not be saved. Check the console."
+  countdown: "&7Teleporting to spawn in: &a{seconds}"
+  teleported: "&7You have been teleported to spawn."
+  cancelled: "&7Your teleport to spawn has been cancelled."

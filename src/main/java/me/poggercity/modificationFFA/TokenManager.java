@@ -124,7 +124,7 @@ final class TokenManager implements Listener, AutoCloseable {
             return true;
         }
         if (args.length != 4 || !args[0].equalsIgnoreCase("give")) {
-            sender.sendMessage(MessageStyle.prefixed("Usage: /tokens give <player> <type> <amount>"));
+            sender.sendMessage(MessageStyle.prefixedMessage("tokens.usage"));
             return true;
         }
 
@@ -132,25 +132,29 @@ final class TokenManager implements Listener, AutoCloseable {
         TokenType type = TokenType.parse(args[2]);
         Integer amount = parseAmount(args[3]);
         if (target == null) {
-            sender.sendMessage(MessageStyle.prefixed("That player is not online."));
+            sender.sendMessage(MessageStyle.prefixedMessage("tokens.player-offline"));
         } else if (type == null) {
-            sender.sendMessage(MessageStyle.prefixed("Unknown token type."));
+            sender.sendMessage(MessageStyle.prefixedMessage("tokens.unknown-type"));
         } else if (amount == null) {
-            sender.sendMessage(MessageStyle.prefixed("Amount must be between 1 and " + MAX_GIVE_AMOUNT + "."));
+            sender.sendMessage(MessageStyle.prefixedMessage(
+                    "tokens.amount-range", Map.of("maximum", MAX_GIVE_AMOUNT)));
         } else {
             giveTokens(target, type, amount);
-            sender.sendMessage(MessageStyle.prefixed("Gave " + amount + " " + type.displayName + " to " + target.getName() + "."));
+            sender.sendMessage(MessageStyle.prefixedMessage("tokens.given", Map.of(
+                    "amount", amount,
+                    "type", type.displayName,
+                    "player", target.getName())));
         }
         return true;
     }
 
     boolean handleExecutioner(CommandSender sender, String[] args) {
         if (args.length != 0) {
-            sender.sendMessage(MessageStyle.prefixed("Usage: /executioner"));
+            sender.sendMessage(MessageStyle.prefixedMessage("tokens.executioner-usage"));
             return true;
         }
         if (!(sender instanceof Player player)) {
-            sender.sendMessage(MessageStyle.prefixed("This command can only be used by players."));
+            sender.sendMessage(MessageStyle.prefixedMessage("core.players-only"));
             return true;
         }
 
@@ -266,7 +270,7 @@ final class TokenManager implements Listener, AutoCloseable {
                 markDirty();
             } else {
                 event.setCancelled(true);
-                event.getPlayer().sendMessage(MessageStyle.prefixed("Shift click to delete it."));
+                event.getPlayer().sendMessage(MessageStyle.prefixedMessage("tokens.node-shift-delete"));
             }
             return;
         }
@@ -398,18 +402,22 @@ final class TokenManager implements Listener, AutoCloseable {
             return true;
         }
         if (args.length < 3 || !args[0].equalsIgnoreCase("give")) {
-            sender.sendMessage(MessageStyle.prefixed("Usage: /" + kind.command + " give <player> <type>"));
+            sender.sendMessage(MessageStyle.prefixedMessage(
+                    "tokens.node-usage", Map.of("command", kind.command)));
             return true;
         }
         Player target = Bukkit.getPlayerExact(args[1]);
         Material material = parseNodeMaterial(joinArguments(args, 2), kind);
         if (target == null) {
-            sender.sendMessage(MessageStyle.prefixed("That player is not online."));
+            sender.sendMessage(MessageStyle.prefixedMessage("tokens.player-offline"));
         } else if (material == null || !kind.supports(material)) {
-            sender.sendMessage(MessageStyle.prefixed("That is not a supported " + kind.label + " type."));
+            sender.sendMessage(MessageStyle.prefixedMessage(
+                    "tokens.node-unsupported", Map.of("kind", kind.label)));
         } else {
             giveItem(target, createNodeItem(kind, material));
-            sender.sendMessage(MessageStyle.prefixed("Gave a " + readable(material) + " resource node to " + target.getName() + "."));
+            sender.sendMessage(MessageStyle.prefixedMessage("tokens.node-given", Map.of(
+                    "material", readable(material),
+                    "player", target.getName())));
         }
         return true;
     }
@@ -443,13 +451,13 @@ final class TokenManager implements Listener, AutoCloseable {
             storage[slot] = null;
         }
         if (heads == 0) {
-            player.sendMessage(MessageStyle.prefixed("You do not have any executioner heads to trade."));
+            player.sendMessage(MessageStyle.prefixedMessage("tokens.no-heads"));
             return;
         }
         inventory.setStorageContents(storage);
         giveTokens(player, TokenType.KILL, heads);
-        player.sendMessage(MessageStyle.prefixed("You traded " + heads + " executioner head"
-                + (heads == 1 ? "" : "s") + " for " + heads + " kill token" + (heads == 1 ? "." : "s.")));
+        String path = heads == 1 ? "tokens.traded-one" : "tokens.traded-many";
+        player.sendMessage(MessageStyle.prefixedMessage(path, Map.of("amount", heads)));
     }
 
     private void giveTokens(Player player, TokenType type, int amount) {

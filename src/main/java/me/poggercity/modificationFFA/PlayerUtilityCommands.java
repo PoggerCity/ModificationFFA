@@ -1,15 +1,21 @@
 package me.poggercity.modificationFFA;
 
-import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
 
 final class PlayerUtilityCommands {
+
+    private final PluginMessages messages;
+
+    PlayerUtilityCommands(PluginMessages messages) {
+        this.messages = Objects.requireNonNull(messages, "messages");
+    }
 
     boolean handleCommand(CommandSender sender, String commandName, String[] args) {
         return switch (commandName.toLowerCase(Locale.ROOT)) {
@@ -42,7 +48,7 @@ final class PlayerUtilityCommands {
 
     private boolean handleClear(CommandSender sender, String[] args) {
         if (args.length > 1) {
-            sender.sendMessage(MessageStyle.prefixed("Usage: /clear [player]"));
+            messages.sendPrefixed(sender, "utility.clear.usage");
             return true;
         }
 
@@ -53,7 +59,7 @@ final class PlayerUtilityCommands {
                 return true;
             }
             if (!(sender instanceof Player player)) {
-                sender.sendMessage(MessageStyle.prefixed("Usage: /clear <player>"));
+                messages.sendPrefixed(sender, "utility.clear.console-usage");
                 return true;
             }
             target = player;
@@ -64,9 +70,7 @@ final class PlayerUtilityCommands {
             }
             target = Bukkit.getPlayerExact(args[0]);
             if (target == null) {
-                sender.sendMessage(MessageStyle.prefix()
-                        .append(Component.text(args[0], NamedTextColor.GREEN))
-                        .append(Component.text(" is not online.", NamedTextColor.GRAY)));
+                messages.sendPrefixed(sender, "utility.player-offline", Map.of("player", args[0]));
                 return true;
             }
         }
@@ -74,44 +78,38 @@ final class PlayerUtilityCommands {
         target.getInventory().clear();
         target.updateInventory();
         if (sender.equals(target)) {
-            sender.sendMessage(MessageStyle.prefixed("You have cleared your inventory."));
+            messages.sendPrefixed(sender, "utility.clear.self");
         } else {
-            sender.sendMessage(MessageStyle.prefix()
-                    .append(Component.text("You have cleared ", NamedTextColor.GRAY))
-                    .append(Component.text(target.getName(), NamedTextColor.GREEN))
-                    .append(Component.text("'s inventory.", NamedTextColor.GRAY)));
+            messages.sendPrefixed(sender, "utility.clear.other", Map.of("player", target.getName()));
         }
         return true;
     }
 
     private boolean handlePing(CommandSender sender, String[] args) {
         if (args.length > 1) {
-            sender.sendMessage(MessageStyle.prefixed("Usage: /ping [player]"));
+            messages.sendPrefixed(sender, "utility.ping.usage");
             return true;
         }
 
         Player target;
         if (args.length == 0) {
             if (!(sender instanceof Player player)) {
-                sender.sendMessage(MessageStyle.prefixed("Usage: /ping <player>"));
+                messages.sendPrefixed(sender, "utility.ping.console-usage");
                 return true;
             }
             target = player;
         } else {
             target = Bukkit.getPlayerExact(args[0]);
             if (target == null) {
-                sender.sendMessage(MessageStyle.prefix()
-                        .append(Component.text(args[0], NamedTextColor.GREEN))
-                        .append(Component.text(" is not online.", NamedTextColor.GRAY)));
+                messages.sendPrefixed(sender, "utility.player-offline", Map.of("player", args[0]));
                 return true;
             }
         }
 
-        sender.sendMessage(MessageStyle.prefix()
-                .append(Component.text(target.getName(), NamedTextColor.GREEN))
-                .append(Component.text("'s ping is ", NamedTextColor.GRAY))
-                .append(Component.text(target.getPing() + "ms", NamedTextColor.GREEN))
-                .append(Component.text(".", NamedTextColor.GRAY)));
+        messages.sendPrefixed(sender, "utility.ping.result", Map.of(
+                "player", target.getName(),
+                "ping", target.getPing()
+        ));
         return true;
     }
 }

@@ -51,6 +51,7 @@ final class PetManager implements Listener, AutoCloseable {
     private static final double TELEPORT_DISTANCE_SQUARED = 144.0D;
 
     private final ModificationFFA plugin;
+    private final PluginMessages messages;
     private final NamespacedKey ownerKey;
     private final Map<UUID, UUID> ownerPets = new HashMap<>();
     private final Map<UUID, UUID> petOwners = new HashMap<>();
@@ -58,8 +59,9 @@ final class PetManager implements Listener, AutoCloseable {
 
     private BukkitTask followTask;
 
-    PetManager(ModificationFFA plugin) {
+    PetManager(ModificationFFA plugin, PluginMessages messages) {
         this.plugin = plugin;
+        this.messages = messages;
         this.ownerKey = new NamespacedKey(plugin, "pet_owner");
     }
 
@@ -186,35 +188,33 @@ final class PetManager implements Listener, AutoCloseable {
 
     private void spawnPet(CommandSender sender, String[] args) {
         if (!(sender instanceof Player player)) {
-            sender.sendMessage(MessageStyle.prefixed("This command can only be used by players."));
+            messages.sendPrefixed(sender, "core.players-only");
             return;
         }
         if (args.length < 3) {
-            player.sendMessage(MessageStyle.prefixed(
-                    "Usage: /pet spawn <rabbit|frog|cat|wolf> <name>"));
+            messages.sendPrefixed(player, "pet.usage.spawn");
             return;
         }
 
         PetType petType = PetType.fromId(args[1]);
         if (petType == null) {
-            player.sendMessage(MessageStyle.prefixed("Unknown pet. Use rabbit, frog, cat, or wolf."));
+            messages.sendPrefixed(player, "pet.unknown");
             return;
         }
         if (!petType.canSpawn(player)) {
-            player.sendMessage(MessageStyle.permissionDenied(petType.permission));
+            messages.sendPrefixed(player, "core.no-permission", Map.of("permission", petType.permission));
             return;
         }
 
         String rawName = String.join(" ", Arrays.copyOfRange(args, 2, args.length));
         if (rawName.length() > MAX_RAW_NAME_LENGTH) {
-            player.sendMessage(MessageStyle.prefixed("That pet name is too long."));
+            messages.sendPrefixed(player, "pet.name.raw-too-long");
             return;
         }
         Component name = parseRgbName(rawName);
         String visibleName = PlainTextComponentSerializer.plainText().serialize(name).trim();
         if (visibleName.isEmpty() || visibleName.length() > MAX_VISIBLE_NAME_LENGTH) {
-            player.sendMessage(MessageStyle.prefixed(
-                    "Pet names must contain between 1 and 32 visible characters."));
+            messages.sendPrefixed(player, "pet.name.visible-length");
             return;
         }
 
@@ -222,17 +222,14 @@ final class PetManager implements Listener, AutoCloseable {
         Entity spawned = player.getWorld().spawnEntity(player.getLocation(), petType.entityType);
         if (!(spawned instanceof Mob pet)) {
             spawned.remove();
-            player.sendMessage(MessageStyle.prefixed("That pet could not be spawned."));
+            messages.sendPrefixed(player, "pet.spawn-failed");
             return;
         }
         configurePet(player, pet, name);
         ownerPets.put(player.getUniqueId(), pet.getUniqueId());
         petOwners.put(pet.getUniqueId(), player.getUniqueId());
 
-        player.sendMessage(MessageStyle.prefix()
-                .append(Component.text("You spawned your ", NamedTextColor.GRAY))
-                .append(Component.text(petType.id, NamedTextColor.GREEN))
-                .append(Component.text(" pet.", NamedTextColor.GRAY)));
+        messages.sendPrefixed(player, "pet.spawned", Map.of("type", petType.id));
     }
 
     private void configurePet(Player owner, Mob pet, Component name) {
@@ -269,23 +266,22 @@ final class PetManager implements Listener, AutoCloseable {
 
     private void despawnPet(CommandSender sender) {
         if (!(sender instanceof Player player)) {
-            sender.sendMessage(MessageStyle.prefixed("This command can only be used by players."));
+            messages.sendPrefixed(sender, "core.players-only");
             return;
         }
         if (!removePet(player.getUniqueId())) {
-            player.sendMessage(MessageStyle.prefixed("You do not have a pet to despawn."));
+            messages.sendPrefixed(player, "pet.none-active");
             return;
         }
-        player.sendMessage(MessageStyle.prefixed("You have despawned your pet."));
+        messages.sendPrefixed(player, "pet.despawned");
     }
 
     private void listPets(CommandSender sender) {
         if (!sender.hasPermission(LIST_PERMISSION)) {
-            sender.sendMessage(MessageStyle.permissionDenied(LIST_PERMISSION));
+            messages.sendPrefixed(sender, "core.no-permission", Map.of("permission", LIST_PERMISSION));
             return;
         }
-        sender.sendMessage(Component.text("Available pets: ", NamedTextColor.GRAY)
-                .append(Component.text("rabbit, frog, cat, wolf", NamedTextColor.GREEN)));
+        messages.send(sender, "pet.available");
     }
 
     private boolean removePet(UUID ownerId) {
@@ -322,8 +318,7 @@ final class PetManager implements Listener, AutoCloseable {
             pet.setAI(!sitting);
             pet.setPose(sitting ? Pose.SITTING : Pose.STANDING, sitting);
         }
-        owner.sendMessage(MessageStyle.prefixed(
-                sitting ? "Your pet is now sitting." : "Your pet is now following you."));
+        messages.sendPrefixed(owner, sitting ? "pet.sitting" : "pet.following");
     }
 
     private void updateFollowingPets() {
@@ -356,23 +351,12 @@ final class PetManager implements Listener, AutoCloseable {
     }
 
     private void sendHelp(CommandSender sender) {
-        sender.sendMessage(Component.text("------ ", NamedTextColor.GRAY)
-                .append(Component.text("pet help", NamedTextColor.GREEN))
-                .append(Component.text(" ------", NamedTextColor.GRAY)));
-        helpLine(sender, "/pet help", "The command to display helpful information.");
-        helpLine(sender, "/pet spawn", "Spawn your permitted pet with an RGB name.");
-        helpLine(sender, "/pet despawn", "Despawn your active pet.");
+        messages.send(sender, "pet.help.title");
+        messages.sendLines(sender, "pet.help.lines", Map.of());
         if (sender.hasPermission(LIST_PERMISSION)) {
-            helpLine(sender, "/pet list", "Get a list of all the pets.");
+            messages.send(sender, "pet.help.list");
         }
-        sender.sendMessage(Component.text("Right click your pet to make it sit or follow.",
-                NamedTextColor.GRAY));
-    }
-
-    private void helpLine(CommandSender sender, String command, String description) {
-        sender.sendMessage(Component.text("- ", NamedTextColor.GRAY)
-                .append(Component.text(command, NamedTextColor.GREEN))
-                .append(Component.text(" - " + description, NamedTextColor.GRAY)));
+        messages.send(sender, "pet.help.interaction");
     }
 
     private Component parseRgbName(String input) {

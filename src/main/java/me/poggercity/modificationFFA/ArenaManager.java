@@ -3,7 +3,6 @@ package me.poggercity.modificationFFA;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextDecoration;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
@@ -59,6 +58,7 @@ final class ArenaManager implements Listener, AutoCloseable {
     private static final List<String> ADMIN_COMMANDS = List.of("wand", "create", "delete", "edit");
 
     private final ModificationFFA plugin;
+    private final PluginMessages messages;
     private final NamespacedKey wandKey;
     private final Path dataFile;
     private final Gson gson = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
@@ -68,8 +68,9 @@ final class ArenaManager implements Listener, AutoCloseable {
     private long nextCreationOrder = 1L;
     private boolean storageHealthy = true;
 
-    ArenaManager(ModificationFFA plugin) {
+    ArenaManager(ModificationFFA plugin, PluginMessages messages) {
         this.plugin = plugin;
+        this.messages = messages;
         this.wandKey = new NamespacedKey(plugin, "arena_wand");
         this.dataFile = plugin.getDataFolder().toPath().resolve("arenas.json");
     }
@@ -90,8 +91,7 @@ final class ArenaManager implements Listener, AutoCloseable {
         }
         if (!requireAdmin(sender) || !storageHealthy) {
             if (!storageHealthy) {
-                sender.sendMessage(MessageStyle.prefixed(
-                        "arenas.json could not be loaded safely. Check the console before editing arenas."));
+                messages.sendPrefixed(sender, "arena.storage-unhealthy");
             }
             return true;
         }
@@ -118,12 +118,22 @@ final class ArenaManager implements Listener, AutoCloseable {
         if (!sender.hasPermission(ADMIN_PERMISSION)) {
             return List.of();
         }
-        if (args.length == 2 && (args[0].equalsIgnoreCase("delete")
-                || args[0].equalsIgnoreCase("edit"))) {
+        if (args.length == 2 && args[0].equalsIgnoreCase("delete")) {
             return matching(arenaNames(), args[1]);
         }
+        if (args.length == 2 && args[0].equalsIgnoreCase("edit")) {
+            List<String> choices = new ArrayList<>(arenaNames());
+            choices.addAll(ArenaFlag.ids());
+            return matching(choices, args[1]);
+        }
         if (args.length == 3 && args[0].equalsIgnoreCase("edit")) {
-            return matching(ArenaFlag.ids(), args[2]);
+            ArenaFlag firstArgumentFlag = ArenaFlag.fromId(args[1]);
+            return firstArgumentFlag == null
+                    ? matching(ArenaFlag.ids(), args[2])
+                    : matching(arenaNames(), args[2]);
+        }
+        if (args.length == 4 && args[0].equalsIgnoreCase("edit")) {
+            return matching(List.of("true", "false"), args[3]);
         }
         return List.of();
     }
@@ -168,6 +178,22 @@ final class ArenaManager implements Listener, AutoCloseable {
         if (disallows(event.getBlockPlaced().getLocation(), ArenaFlag.BLOCK_PLACE)) {
             event.setCancelled(true);
         }
+    }
+
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onBlockInteract(PlayerInteractEvent event) {
+        Action action = event.getAction();
+        if (action == Action.RIGHT_CLICK_BLOCK && event.getHand() != EquipmentSlot.HAND) {
+            return;
+        }
+        if ((action != Action.RIGHT_CLICK_BLOCK && action != Action.PHYSICAL)
+                || event.getClickedBlock() == null
+                || !disallows(event.getClickedBlock().getLocation(), ArenaFlag.INTERACT)) {
+            return;
+        }
+        event.setCancelled(true);
+        event.setUseInteractedBlock(org.bukkit.event.Event.Result.DENY);
+        messages.sendPrefixed(event.getPlayer(), "arena.denied.interact");
     }
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
@@ -264,16 +290,16 @@ final class ArenaManager implements Listener, AutoCloseable {
 
     private boolean giveWand(CommandSender sender) {
         if (!(sender instanceof Player player)) {
-            sender.sendMessage(MessageStyle.prefixed("This command can only be used by players."));
+            messages.sendPrefixed(sender, "core.players-only");
             return true;
         }
         ItemStack wand = new ItemStack(Material.WOODEN_AXE);
         ItemMeta meta = wand.getItemMeta();
-        meta.displayName(Component.text("Arena Wand", NamedTextColor.LIGHT_PURPLE)
+        meta.displayName(messages.component("arena.wand.name")
                 .decoration(TextDecoration.ITALIC, false));
         meta.lore(List.of(
-                gray("Left-click to set position 1."),
-                gray("Right-click to set position 2.")
+                messages.component("arena.wand.left-click").decoration(TextDecoration.ITALIC, false),
+                messages.component("arena.wand.right-click").decoration(TextDecoration.ITALIC, false)
         ));
         meta.setUnbreakable(true);
         meta.getPersistentDataContainer().set(wandKey, PersistentDataType.BYTE, (byte) 1);
@@ -281,30 +307,30 @@ final class ArenaManager implements Listener, AutoCloseable {
         for (ItemStack overflow : player.getInventory().addItem(wand).values()) {
             player.getWorld().dropItemNaturally(player.getLocation(), overflow);
         }
-        player.sendMessage(MessageStyle.prefixed("You have received the arena wand."));
+        messages.sendPrefixed(player, "arena.wand-received");
         return true;
     }
 
     private boolean create(CommandSender sender, String[] args) {
         if (!(sender instanceof Player player)) {
-            sender.sendMessage(MessageStyle.prefixed("This command can only be used by players."));
+            messages.sendPrefixed(sender, "core.players-only");
             return true;
         }
         if (args.length != 2 || !validName(args[1])) {
-            sender.sendMessage(MessageStyle.prefixed("Usage: /arena create <name>"));
+            messages.sendPrefixed(sender, "arena.usage.create");
             return true;
         }
         if (find(args[1]) != null) {
-            sender.sendMessage(MessageStyle.prefixed("An arena with that name already exists."));
+            messages.sendPrefixed(sender, "arena.already-exists", Map.of("name", args[1]));
             return true;
         }
         RegionSelection selection = selections.get(player.getUniqueId());
         if (selection == null || !selection.complete()) {
-            sender.sendMessage(MessageStyle.prefixed("Select both corners with the arena wand first."));
+            messages.sendPrefixed(sender, "arena.select-first");
             return true;
         }
         if (!selection.sameWorld()) {
-            sender.sendMessage(MessageStyle.prefixed("Both corners must be in the same world."));
+            messages.sendPrefixed(sender, "arena.same-world");
             return true;
         }
         ArenaRegion arena = new ArenaRegion(
@@ -313,73 +339,85 @@ final class ArenaManager implements Listener, AutoCloseable {
         updated.add(arena);
         long updatedNextCreationOrder = nextCreationOrder + 1L;
         if (!save(new ArenaData(SCHEMA_VERSION, updatedNextCreationOrder, List.copyOf(updated)))) {
-            sender.sendMessage(MessageStyle.prefixed("The arena could not be saved. Check the console."));
+            messages.sendPrefixed(sender, "arena.save-failed");
             return true;
         }
         arenas = List.copyOf(updated);
         nextCreationOrder = updatedNextCreationOrder;
-        sender.sendMessage(MessageStyle.prefix()
-                .append(Component.text("Created arena ", NamedTextColor.GRAY))
-                .append(Component.text(arena.name(), NamedTextColor.GREEN))
-                .append(Component.text(".", NamedTextColor.GRAY)));
+        messages.sendPrefixed(sender, "arena.created", Map.of("name", arena.name()));
         return true;
     }
 
     private boolean delete(CommandSender sender, String[] args) {
         if (args.length != 2 || !validName(args[1])) {
-            sender.sendMessage(MessageStyle.prefixed("Usage: /arena delete <name>"));
+            messages.sendPrefixed(sender, "arena.usage.delete");
             return true;
         }
         List<ArenaRegion> updated = new ArrayList<>(arenas);
         boolean removed = updated.removeIf(arena -> arena.name().equalsIgnoreCase(args[1]));
         if (!removed) {
-            sender.sendMessage(MessageStyle.prefixed("That arena does not exist."));
+            messages.sendPrefixed(sender, "arena.not-found", Map.of("name", args[1]));
             return true;
         }
         if (!save(new ArenaData(SCHEMA_VERSION, nextCreationOrder, List.copyOf(updated)))) {
-            sender.sendMessage(MessageStyle.prefixed("The arena deletion could not be saved. Check the console."));
+            messages.sendPrefixed(sender, "arena.delete-failed");
             return true;
         }
         arenas = List.copyOf(updated);
-        sender.sendMessage(MessageStyle.prefixed("Deleted arena " + args[1] + "."));
+        messages.sendPrefixed(sender, "arena.deleted", Map.of("name", args[1]));
         return true;
     }
 
     private boolean edit(CommandSender sender, String[] args) {
-        if (args.length != 3) {
-            sender.sendMessage(MessageStyle.prefixed(
-                    "Usage: /arena edit <name> <pvp|block-break|block-place|wind-charge|item-drops|item-pickup>"));
+        if (args.length != 4) {
+            messages.sendPrefixed(sender, "arena.usage.edit");
             return true;
         }
-        ArenaRegion current = find(args[1]);
-        ArenaFlag flag = ArenaFlag.fromId(args[2]);
+        ArenaFlag firstArgumentFlag = ArenaFlag.fromId(args[1]);
+        ArenaRegion alternateArena = firstArgumentFlag == null ? null : find(args[2]);
+        boolean alternateSyntax = alternateArena != null;
+        ArenaRegion current = alternateSyntax ? alternateArena : find(args[1]);
+        ArenaFlag flag = alternateSyntax ? firstArgumentFlag : ArenaFlag.fromId(args[2]);
+        Boolean enabled = parseBoolean(args[3]);
         if (current == null) {
-            sender.sendMessage(MessageStyle.prefixed("That arena does not exist."));
+            String arenaName = firstArgumentFlag == null ? args[1] : args[2];
+            messages.sendPrefixed(sender, "arena.not-found", Map.of("name", arenaName));
             return true;
         }
         if (flag == null) {
-            sender.sendMessage(MessageStyle.prefixed("That arena setting does not exist."));
+            messages.sendPrefixed(sender, "arena.setting-invalid");
             return true;
         }
-        ArenaRules updatedRules = current.rules().toggle(flag);
+        if (enabled == null) {
+            messages.sendPrefixed(sender, "arena.setting-value");
+            return true;
+        }
+        ArenaRules updatedRules = current.rules().with(flag, enabled);
         ArenaRegion replacement = new ArenaRegion(
                 current.name(), current.creationOrder(), current.bounds(), updatedRules);
         List<ArenaRegion> updated = arenas.stream()
                 .map(arena -> arena.name().equalsIgnoreCase(current.name()) ? replacement : arena)
                 .toList();
         if (!save(new ArenaData(SCHEMA_VERSION, nextCreationOrder, List.copyOf(updated)))) {
-            sender.sendMessage(MessageStyle.prefixed("The arena setting could not be saved. Check the console."));
+            messages.sendPrefixed(sender, "arena.edit-failed");
             return true;
         }
         arenas = List.copyOf(updated);
-        boolean enabled = updatedRules.allows(flag);
-        sender.sendMessage(MessageStyle.prefix()
-                .append(Component.text("Arena ", NamedTextColor.GRAY))
-                .append(Component.text(current.name(), NamedTextColor.GREEN))
-                .append(Component.text(enabled ? " now allows " : " no longer allows ", NamedTextColor.GRAY))
-                .append(Component.text(flag.displayName, NamedTextColor.GREEN))
-                .append(Component.text(".", NamedTextColor.GRAY)));
+        messages.sendPrefixed(sender, "arena.setting-updated", Map.of(
+                "arena", current.name(),
+                "setting", flag.id,
+                "value", enabled ? "&atrue" : "&cfalse"));
         return true;
+    }
+
+    private Boolean parseBoolean(String value) {
+        if (value.equalsIgnoreCase("true")) {
+            return true;
+        }
+        if (value.equalsIgnoreCase("false")) {
+            return false;
+        }
+        return null;
     }
 
     private boolean disallows(Location location, ArenaFlag flag) {
@@ -432,31 +470,20 @@ final class ArenaManager implements Listener, AutoCloseable {
     }
 
     private void sendHelp(CommandSender sender) {
-        sender.sendMessage(Component.text("Arena help", NamedTextColor.GREEN));
+        messages.send(sender, "arena.help.title");
         if (!sender.hasPermission(ADMIN_PERMISSION)) {
             return;
         }
-        helpLine(sender, "/arena wand", "Gives you the arena selection wand.");
-        helpLine(sender, "/arena create <name>", "Creates an arena from your selection.");
-        helpLine(sender, "/arena delete <name>", "Deletes an arena.");
-        helpLine(sender, "/arena edit <name> <setting>", "Toggles an arena setting.");
-    }
-
-    private void helpLine(CommandSender sender, String command, String description) {
-        sender.sendMessage(Component.text("- ", NamedTextColor.DARK_GRAY)
-                .append(Component.text(command, NamedTextColor.GREEN))
-                .append(Component.text(" - " + description, NamedTextColor.GRAY)));
-    }
-
-    private Component gray(String text) {
-        return Component.text(text, NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false);
+        messages.sendLines(sender, "arena.help.lines", Map.of());
     }
 
     private void sendPosition(Player player, int position, RegionPoint point) {
-        player.sendMessage(MessageStyle.prefix()
-                .append(Component.text("Position " + position + " set to ", NamedTextColor.GRAY))
-                .append(Component.text(point.x() + ", " + point.y() + ", " + point.z(), NamedTextColor.GREEN))
-                .append(Component.text(" in " + point.worldName() + ".", NamedTextColor.GRAY)));
+        messages.sendPrefixed(player, "arena.position-set", Map.of(
+                "position", position,
+                "x", point.x(),
+                "y", point.y(),
+                "z", point.z(),
+                "world", point.worldName()));
     }
 
     private boolean isWand(ItemStack item) {
@@ -468,7 +495,7 @@ final class ArenaManager implements Listener, AutoCloseable {
         if (sender.hasPermission(ADMIN_PERMISSION)) {
             return true;
         }
-        sender.sendMessage(MessageStyle.permissionDenied(ADMIN_PERMISSION));
+        messages.sendPrefixed(sender, "core.no-permission", Map.of("permission", ADMIN_PERMISSION));
         return false;
     }
 
@@ -557,10 +584,11 @@ final class ArenaManager implements Listener, AutoCloseable {
             boolean blockPlace,
             boolean windCharge,
             boolean itemDrops,
-            boolean itemPickup
+            boolean itemPickup,
+            Boolean interact
     ) {
         static ArenaRules defaults() {
-            return new ArenaRules(true, true, true, true, true, true);
+            return new ArenaRules(true, true, true, true, true, true, true);
         }
 
         boolean allows(ArenaFlag flag) {
@@ -571,17 +599,26 @@ final class ArenaManager implements Listener, AutoCloseable {
                 case WIND_CHARGE -> windCharge;
                 case ITEM_DROPS -> itemDrops;
                 case ITEM_PICKUP -> itemPickup;
+                case INTERACT -> interact == null || interact;
             };
         }
 
-        ArenaRules toggle(ArenaFlag flag) {
+        ArenaRules with(ArenaFlag flag, boolean enabled) {
             return switch (flag) {
-                case PVP -> new ArenaRules(!pvp, blockBreak, blockPlace, windCharge, itemDrops, itemPickup);
-                case BLOCK_BREAK -> new ArenaRules(pvp, !blockBreak, blockPlace, windCharge, itemDrops, itemPickup);
-                case BLOCK_PLACE -> new ArenaRules(pvp, blockBreak, !blockPlace, windCharge, itemDrops, itemPickup);
-                case WIND_CHARGE -> new ArenaRules(pvp, blockBreak, blockPlace, !windCharge, itemDrops, itemPickup);
-                case ITEM_DROPS -> new ArenaRules(pvp, blockBreak, blockPlace, windCharge, !itemDrops, itemPickup);
-                case ITEM_PICKUP -> new ArenaRules(pvp, blockBreak, blockPlace, windCharge, itemDrops, !itemPickup);
+                case PVP -> new ArenaRules(enabled, blockBreak, blockPlace, windCharge,
+                        itemDrops, itemPickup, interact);
+                case BLOCK_BREAK -> new ArenaRules(pvp, enabled, blockPlace, windCharge,
+                        itemDrops, itemPickup, interact);
+                case BLOCK_PLACE -> new ArenaRules(pvp, blockBreak, enabled, windCharge,
+                        itemDrops, itemPickup, interact);
+                case WIND_CHARGE -> new ArenaRules(pvp, blockBreak, blockPlace, enabled,
+                        itemDrops, itemPickup, interact);
+                case ITEM_DROPS -> new ArenaRules(pvp, blockBreak, blockPlace, windCharge,
+                        enabled, itemPickup, interact);
+                case ITEM_PICKUP -> new ArenaRules(pvp, blockBreak, blockPlace, windCharge,
+                        itemDrops, enabled, interact);
+                case INTERACT -> new ArenaRules(pvp, blockBreak, blockPlace, windCharge,
+                        itemDrops, itemPickup, enabled);
             };
         }
     }
@@ -592,7 +629,8 @@ final class ArenaManager implements Listener, AutoCloseable {
         BLOCK_PLACE("block-place", "block placing"),
         WIND_CHARGE("wind-charge", "wind charges"),
         ITEM_DROPS("item-drops", "item dropping"),
-        ITEM_PICKUP("item-pickup", "item pickup");
+        ITEM_PICKUP("item-pickup", "item pickup"),
+        INTERACT("interact", "block interaction");
 
         private final String id;
         private final String displayName;

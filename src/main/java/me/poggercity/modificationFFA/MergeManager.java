@@ -71,7 +71,7 @@ final class MergeManager implements Listener, AutoCloseable {
 
     boolean open(CommandSender sender) {
         if (!(sender instanceof Player player)) {
-            sender.sendMessage(MessageStyle.prefixed("This command can only be used by players."));
+            sender.sendMessage(MessageStyle.prefixedMessage("core.players-only"));
             return true;
         }
 

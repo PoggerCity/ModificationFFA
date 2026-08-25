@@ -74,6 +74,7 @@ final class CombatManager implements Listener, AutoCloseable {
     private final StatsManager statsManager;
     private final SpawnManager spawnManager;
     private final TokenManager tokenManager;
+    private final PluginMessages messages;
     private final NamespacedKey loggerKey;
     private final Path dataFile;
     private final Gson gson = new Gson();
@@ -88,11 +89,12 @@ final class CombatManager implements Listener, AutoCloseable {
     private boolean closed;
 
     CombatManager(JavaPlugin plugin, StatsManager statsManager, SpawnManager spawnManager,
-                  TokenManager tokenManager) {
+                  TokenManager tokenManager, PluginMessages messages) {
         this.plugin = plugin;
         this.statsManager = statsManager;
         this.spawnManager = spawnManager;
         this.tokenManager = tokenManager;
+        this.messages = messages;
         this.loggerKey = new NamespacedKey(plugin, "combat_logger");
         this.dataFile = plugin.getDataFolder().toPath().resolve("combat.json");
         this.writer = Executors.newSingleThreadExecutor(runnable -> {
@@ -121,18 +123,17 @@ final class CombatManager implements Listener, AutoCloseable {
         switch (args[0].toLowerCase(Locale.ROOT)) {
             case "timer" -> {
                 if (args.length != 1 || !(sender instanceof Player player)) {
-                    sender.sendMessage(MessageStyle.prefixed("Usage: /combat timer"));
+                    messages.sendPrefixed(sender, "combat.usage.timer");
                     return true;
                 }
                 Long end = combatEnds.get(player.getUniqueId());
                 long seconds = end == null ? 0L : secondsRemaining(end);
                 if (seconds <= 0L) {
                     clearCombat(player.getUniqueId(), false);
-                    sender.sendMessage(MessageStyle.prefixed("You are not in combat."));
+                    messages.sendPrefixed(sender, "combat.not-tagged");
                 } else {
-                    sender.sendMessage(MessageStyle.prefix()
-                            .append(Component.text("Combat Tag: ", NamedTextColor.GRAY))
-                            .append(Component.text(seconds, NamedTextColor.GREEN)));
+                    sender.sendMessage(MessageStyle.prefix().append(messages.component(
+                            "combat.timer", Map.of("seconds", seconds))));
                 }
             }
             case "tag" -> forceTag(sender, args);
@@ -216,8 +217,7 @@ final class CombatManager implements Listener, AutoCloseable {
                 .toLowerCase(Locale.ROOT);
         if (!commandWhitelist.contains(root)) {
             event.setCancelled(true);
-            event.getPlayer().sendMessage(MessageStyle.prefixed(
-                    "You cannot use that command while in combat."));
+            messages.sendPrefixed(event.getPlayer(), "combat.command-blocked");
         }
     }
 
@@ -283,7 +283,7 @@ final class CombatManager implements Listener, AutoCloseable {
         if (!session.dead && zombie != null && !zombie.isDead()) {
             restoreFromLogger(player, zombie, session.snapshot);
             zombie.remove();
-            player.sendMessage(MessageStyle.prefixed("You are no longer in combat."));
+            messages.sendPrefixed(player, "combat.ended");
         } else {
             if (zombie != null) {
                 zombie.remove();
@@ -294,8 +294,8 @@ final class CombatManager implements Listener, AutoCloseable {
                 player.teleport(spawn);
             }
             statsManager.recordCombatLogDeath(player.getUniqueId(), player.getName());
-            player.sendMessage(MessageStyle.prefixed("Your combat logger died. Your inventory has been lost."));
-            player.sendMessage(MessageStyle.prefixed("You are no longer in combat."));
+            messages.sendPrefixed(player, "combat.logger-died");
+            messages.sendPrefixed(player, "combat.ended");
         }
         queueSave();
     }
@@ -483,7 +483,7 @@ final class CombatManager implements Listener, AutoCloseable {
                 combatOpponents.remove(entry.getKey());
                 if (player != null) {
                     player.sendActionBar(Component.empty());
-                    player.sendMessage(MessageStyle.prefixed("You are no longer in combat."));
+                    messages.sendPrefixed(player, "combat.ended");
                 }
             } else if (player != null) {
                 showTimer(player, seconds);
@@ -492,8 +492,7 @@ final class CombatManager implements Listener, AutoCloseable {
     }
 
     private void showTimer(Player player, long seconds) {
-        player.sendActionBar(Component.text("Combat Tag: ", NamedTextColor.GRAY)
-                .append(Component.text(seconds, NamedTextColor.GREEN)));
+        player.sendActionBar(messages.component("combat.timer", Map.of("seconds", seconds)));
     }
 
     private void tagPlayer(Player player, UUID opponent) {
@@ -513,7 +512,7 @@ final class CombatManager implements Listener, AutoCloseable {
         if (player != null && removed) {
             player.sendActionBar(Component.empty());
             if (notify) {
-                player.sendMessage(MessageStyle.prefixed("You are no longer in combat."));
+                messages.sendPrefixed(player, "combat.ended");
             }
         }
     }
@@ -534,20 +533,18 @@ final class CombatManager implements Listener, AutoCloseable {
             return;
         }
         if (args.length != 2) {
-            sender.sendMessage(MessageStyle.prefixed("Usage: /combat tag <player>"));
+            messages.sendPrefixed(sender, "combat.usage.tag");
             return;
         }
         Player target = Bukkit.getPlayerExact(args[1]);
         if (target == null) {
-            sender.sendMessage(MessageStyle.prefixed("Player " + args[1] + " is not online."));
+            messages.sendPrefixed(sender, "core.player-offline", Map.of("player", args[1]));
             return;
         }
         combatEnds.put(target.getUniqueId(), System.currentTimeMillis() + COMBAT_MILLIS);
         combatOpponents.remove(target.getUniqueId());
         showTimer(target, 60L);
-        sender.sendMessage(MessageStyle.prefix()
-                .append(Component.text(target.getName(), NamedTextColor.GREEN))
-                .append(Component.text(" is now in combat.", NamedTextColor.GRAY)));
+        messages.sendPrefixed(sender, "combat.forced-tag", Map.of("player", target.getName()));
     }
 
     private void forceUntag(CommandSender sender, String[] args) {
@@ -556,20 +553,18 @@ final class CombatManager implements Listener, AutoCloseable {
             return;
         }
         if (args.length != 2) {
-            sender.sendMessage(MessageStyle.prefixed("Usage: /combat untag <player>"));
+            messages.sendPrefixed(sender, "combat.usage.untag");
             return;
         }
         Player target = Bukkit.getPlayerExact(args[1]);
         if (target == null) {
-            sender.sendMessage(MessageStyle.prefixed("Player " + args[1] + " is not online."));
+            messages.sendPrefixed(sender, "core.player-offline", Map.of("player", args[1]));
             return;
         }
         boolean tagged = combatEnds.containsKey(target.getUniqueId());
         clearCombat(target.getUniqueId(), true);
-        sender.sendMessage(MessageStyle.prefix()
-                .append(Component.text(target.getName(), NamedTextColor.GREEN))
-                .append(Component.text(tagged ? " is no longer in combat." : " was not in combat.",
-                        NamedTextColor.GRAY)));
+        messages.sendPrefixed(sender, tagged ? "combat.forced-untag" : "combat.already-untagged",
+                Map.of("player", target.getName()));
     }
 
     private void handleCommandWhitelist(CommandSender sender, String[] args) {
@@ -580,41 +575,38 @@ final class CombatManager implements Listener, AutoCloseable {
         if (args.length == 2 && args[1].equalsIgnoreCase("list")) {
             String commands = commandWhitelist.stream().sorted().map(command -> "/" + command)
                     .collect(java.util.stream.Collectors.joining(", "));
-            sender.sendMessage(MessageStyle.prefixed("Combat command whitelist: " + commands));
+            messages.sendPrefixed(sender, "combat.whitelist.list", Map.of("commands", commands));
             return;
         }
         if (args.length != 3
                 || (!args[1].equalsIgnoreCase("add") && !args[1].equalsIgnoreCase("delete"))) {
-            sender.sendMessage(MessageStyle.prefixed(
-                    "Usage: /combat commandwhitelist <add|delete> <command> or list."));
+            messages.sendPrefixed(sender, "combat.usage.command-whitelist");
             return;
         }
 
         String command = args[2].toLowerCase(Locale.ROOT);
         if (!validRootCommand(command)) {
-            sender.sendMessage(MessageStyle.prefixed(
-                    "Enter one root command without / or spaces."));
+            messages.sendPrefixed(sender, "combat.whitelist.invalid-command");
             return;
         }
         if (args[1].equalsIgnoreCase("add")) {
             boolean added = commandWhitelist.add(command);
-            sender.sendMessage(MessageStyle.prefixed(added
-                    ? "/" + command + " is now allowed in combat."
-                    : "/" + command + " is already allowed in combat."));
+            messages.sendPrefixed(sender,
+                    added ? "combat.whitelist.added" : "combat.whitelist.already-added",
+                    Map.of("command", command));
             if (added) {
                 queueSave();
             }
             return;
         }
         if (command.equals("combat")) {
-            sender.sendMessage(MessageStyle.prefixed(
-                    "/combat must remain allowed so the combat timer can be checked."));
+            messages.sendPrefixed(sender, "combat.whitelist.combat-required");
             return;
         }
         boolean removed = commandWhitelist.remove(command);
-        sender.sendMessage(MessageStyle.prefixed(removed
-                ? "/" + command + " is no longer allowed in combat."
-                : "/" + command + " was not in the combat command whitelist."));
+        messages.sendPrefixed(sender,
+                removed ? "combat.whitelist.removed" : "combat.whitelist.not-listed",
+                Map.of("command", command));
         if (removed) {
             queueSave();
         }
@@ -635,31 +627,22 @@ final class CombatManager implements Listener, AutoCloseable {
     }
 
     private void sendHelp(CommandSender sender) {
-        sender.sendMessage(Component.text("------ ", NamedTextColor.GRAY)
-                .append(Component.text("Combat Help", NamedTextColor.GREEN))
-                .append(Component.text(" ------", NamedTextColor.GRAY)));
-        helpLine(sender, "/combat help", "The command to display helpful information.");
-        helpLine(sender, "/combat timer", "Check the time left you have in combat.");
+        messages.send(sender, "combat.help.title");
+        messages.send(sender, "combat.help.help");
+        messages.send(sender, "combat.help.timer");
         if (sender.hasPermission(TAG_PERMISSION)) {
-            helpLine(sender, "/combat tag <player>", "Force a player into combat.");
+            messages.send(sender, "combat.help.tag");
         }
         if (sender.hasPermission(UNTAG_PERMISSION)) {
-            helpLine(sender, "/combat untag <player>", "Untag a player from combat.");
+            messages.send(sender, "combat.help.untag");
         }
         if (sender.hasPermission(COMMAND_WHITELIST_PERMISSION)) {
-            helpLine(sender, "/combat commandwhitelist <add|delete|list>",
-                    "Configure commands players may use in combat.");
+            messages.send(sender, "combat.help.command-whitelist");
         }
-    }
-
-    private void helpLine(CommandSender sender, String command, String description) {
-        sender.sendMessage(Component.text("- ", NamedTextColor.GRAY)
-                .append(Component.text(command, NamedTextColor.GREEN))
-                .append(Component.text(" - " + description, NamedTextColor.GRAY)));
     }
 
     private void sendPermissionDenied(CommandSender sender, String permission) {
-        sender.sendMessage(MessageStyle.permissionDenied(permission));
+        messages.sendPrefixed(sender, "core.no-permission", Map.of("permission", permission));
     }
 
     private void restoreLoggerEntities() {

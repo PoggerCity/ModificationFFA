@@ -1,7 +1,5 @@
 package me.poggercity.modificationFFA;
 
-import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Material;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
@@ -11,6 +9,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -22,6 +21,7 @@ final class KitManager implements AutoCloseable {
     private static final List<String> PLAYER_SUBCOMMANDS = List.of("help", "save", "load", "delete");
     private final ModificationFFA plugin;
     private final SettingsManager settingsManager;
+    private final PluginMessages messages;
     private final KitDatabase database;
     private final KitLoadCooldown loadCooldown = new KitLoadCooldown();
     private final Set<UUID> activeOperations = ConcurrentHashMap.newKeySet();
@@ -29,9 +29,10 @@ final class KitManager implements AutoCloseable {
     private ItemStack[] mainKit;
     private boolean databaseReady;
 
-    KitManager(ModificationFFA plugin, SettingsManager settingsManager) {
+    KitManager(ModificationFFA plugin, SettingsManager settingsManager, PluginMessages messages) {
         this.plugin = plugin;
         this.settingsManager = settingsManager;
+        this.messages = messages;
         this.database = new KitDatabase(plugin.getDataFolder().toPath().resolve("kits.db"));
     }
 
@@ -67,7 +68,7 @@ final class KitManager implements AutoCloseable {
         }
 
         if (!(sender instanceof Player player)) {
-            sender.sendMessage(MessageStyle.prefixed("This command can only be used by players."));
+            messages.sendPrefixed(sender, "core.players-only");
             return true;
         }
 
@@ -111,7 +112,7 @@ final class KitManager implements AutoCloseable {
 
     private void saveMainKit(Player player) {
         if (!player.hasPermission(ADMIN_PERMISSION)) {
-            player.sendMessage(MessageStyle.permissionDenied(ADMIN_PERMISSION));
+            messages.sendPrefixed(player, "core.no-permission", Map.of("permission", ADMIN_PERMISSION));
             return;
         }
         if (!canStartOperation(player)) {
@@ -121,7 +122,7 @@ final class KitManager implements AutoCloseable {
         ItemStack[] contents = cloneContents(player.getInventory().getContents());
         if (!KitValidator.hasAnyItems(contents)) {
             activeOperations.remove(player.getUniqueId());
-            player.sendMessage(MessageStyle.prefixed("The main kit cannot be empty."));
+            messages.sendPrefixed(player, "kit.main-empty");
             return;
         }
 
@@ -131,7 +132,7 @@ final class KitManager implements AutoCloseable {
         } catch (RuntimeException exception) {
             activeOperations.remove(player.getUniqueId());
             plugin.getLogger().log(Level.SEVERE, "Could not serialize the main kit.", exception);
-            player.sendMessage(MessageStyle.prefixed("The main kit could not be saved. Check the console."));
+            messages.sendPrefixed(player, "kit.main-save-failed");
             return;
         }
 
@@ -142,14 +143,14 @@ final class KitManager implements AutoCloseable {
             if (error != null) {
                 logDatabaseError("save the main kit", error);
                 if (onlinePlayer != null) {
-                    onlinePlayer.sendMessage(MessageStyle.prefixed("The main kit could not be saved. Check the console."));
+                    messages.sendPrefixed(onlinePlayer, "kit.main-save-failed");
                 }
                 return;
             }
 
             mainKit = cloneContents(contents);
             if (onlinePlayer != null) {
-                onlinePlayer.sendMessage(MessageStyle.prefixed("You have saved the main kit."));
+                messages.sendPrefixed(onlinePlayer, "kit.main-saved");
             }
         }));
     }
@@ -173,7 +174,7 @@ final class KitManager implements AutoCloseable {
         } catch (RuntimeException exception) {
             activeOperations.remove(player.getUniqueId());
             plugin.getLogger().log(Level.SEVERE, "Could not serialize a player kit.", exception);
-            player.sendMessage(MessageStyle.prefixed("Your kit could not be saved. Check the console."));
+            messages.sendPrefixed(player, "kit.save-failed");
             return;
         }
 
@@ -184,13 +185,13 @@ final class KitManager implements AutoCloseable {
             if (error != null) {
                 logDatabaseError("save a player kit", error);
                 if (onlinePlayer != null) {
-                    onlinePlayer.sendMessage(MessageStyle.prefixed("Your kit could not be saved. Check the console."));
+                    messages.sendPrefixed(onlinePlayer, "kit.save-failed");
                 }
                 return;
             }
 
             if (onlinePlayer != null) {
-                onlinePlayer.sendMessage(MessageStyle.prefixed("You have saved your kit."));
+                messages.sendPrefixed(onlinePlayer, "kit.saved");
             }
         }));
     }
@@ -206,10 +207,7 @@ final class KitManager implements AutoCloseable {
         }
         String remaining = loadCooldown.remaining(player.getUniqueId());
         if (remaining != null) {
-            player.sendMessage(MessageStyle.prefix()
-                    .append(Component.text("You need to wait ", NamedTextColor.GRAY))
-                    .append(Component.text(remaining, NamedTextColor.GREEN))
-                    .append(Component.text(" before you can load your kit again.", NamedTextColor.GRAY)));
+            messages.sendPrefixed(player, "kit.load-wait", Map.of("seconds", remaining));
             return;
         }
         if (!canStartOperation(player)) {
@@ -225,7 +223,7 @@ final class KitManager implements AutoCloseable {
             }
             if (error != null) {
                 logDatabaseError("load a player kit", error);
-                onlinePlayer.sendMessage(MessageStyle.prefixed("Your kit could not be loaded. Check the console."));
+                messages.sendPrefixed(onlinePlayer, "kit.load-failed");
                 return;
             }
 
@@ -254,10 +252,10 @@ final class KitManager implements AutoCloseable {
                 onlinePlayer.getInventory().setContents(cloneContents(kitToLoad));
                 onlinePlayer.updateInventory();
                 loadCooldown.recordSuccess(playerId);
-                onlinePlayer.sendMessage(MessageStyle.prefixed("You have loaded your kit."));
+                messages.sendPrefixed(onlinePlayer, "kit.loaded");
             } catch (IllegalArgumentException exception) {
                 plugin.getLogger().log(Level.SEVERE, "A saved kit has an invalid inventory size.", exception);
-                onlinePlayer.sendMessage(MessageStyle.prefixed("Your kit could not be loaded. Check the console."));
+                messages.sendPrefixed(onlinePlayer, "kit.load-failed");
             }
         }));
     }
@@ -274,24 +272,24 @@ final class KitManager implements AutoCloseable {
             if (error != null) {
                 logDatabaseError("delete a player kit", error);
                 if (onlinePlayer != null) {
-                    onlinePlayer.sendMessage(MessageStyle.prefixed("Your kit could not be deleted. Check the console."));
+                    messages.sendPrefixed(onlinePlayer, "kit.delete-failed");
                 }
                 return;
             }
 
             if (onlinePlayer != null) {
-                onlinePlayer.sendMessage(MessageStyle.prefixed("You have deleted your kit."));
+                messages.sendPrefixed(onlinePlayer, "kit.deleted");
             }
         }));
     }
 
     private boolean canStartOperation(Player player) {
         if (!databaseReady) {
-            player.sendMessage(MessageStyle.prefixed("The kit database is still starting. Please try again."));
+            messages.sendPrefixed(player, "kit.starting");
             return false;
         }
         if (!activeOperations.add(player.getUniqueId())) {
-            player.sendMessage(MessageStyle.prefixed("Please wait for your current kit operation to finish."));
+            messages.sendPrefixed(player, "kit.busy");
             return false;
         }
         return true;
@@ -299,11 +297,11 @@ final class KitManager implements AutoCloseable {
 
     private boolean hasUsableMainKit(Player player) {
         if (!databaseReady) {
-            player.sendMessage(MessageStyle.prefixed("The kit database is still starting. Please try again."));
+            messages.sendPrefixed(player, "kit.starting");
             return false;
         }
         if (mainKit == null || !KitValidator.hasAnyItems(mainKit)) {
-            player.sendMessage(MessageStyle.prefixed("The main kit has not been configured yet."));
+            messages.sendPrefixed(player, "kit.main-missing");
             return false;
         }
         return true;
@@ -312,25 +310,18 @@ final class KitManager implements AutoCloseable {
     private void sendValidationFailure(Player player, KitValidator.SaveResult validation) {
         Material material = validation.material();
         switch (validation.failure()) {
-            case FOREIGN_MATERIAL -> player.sendMessage(MessageStyle.prefix()
-                    .append(Component.text("You cannot save a kit with a ", NamedTextColor.GRAY))
-                    .append(Component.text(material.name(), NamedTextColor.GREEN))
-                    .append(Component.text(" material in it.", NamedTextColor.GRAY)));
-            case DIFFERENT_ITEM -> player.sendMessage(MessageStyle.prefix()
-                    .append(Component.text("You cannot save a modified ", NamedTextColor.GRAY))
-                    .append(Component.text(material.name(), NamedTextColor.GREEN))
-                    .append(Component.text(" item.", NamedTextColor.GRAY)));
-            case WRONG_AMOUNT -> player.sendMessage(MessageStyle.prefixed(
-                    "Your kit cannot contain more items than the main kit."));
-            case MORE_DURABILITY -> player.sendMessage(MessageStyle.prefixed(
-                    "Your kit cannot contain items with more durability than the main kit."));
-            default -> player.sendMessage(MessageStyle.prefixed("Your kit does not match the main kit."));
+            case FOREIGN_MATERIAL -> messages.sendPrefixed(player, "kit.invalid-material",
+                    Map.of("material", material.name()));
+            case DIFFERENT_ITEM -> messages.sendPrefixed(player, "kit.invalid-item",
+                    Map.of("item", material.name()));
+            case WRONG_AMOUNT -> messages.sendPrefixed(player, "kit.too-many-items");
+            case MORE_DURABILITY -> messages.sendPrefixed(player, "kit.too-much-durability");
+            default -> messages.sendPrefixed(player, "kit.mismatch");
         }
     }
 
     private void sendPurchasedItemsMessage(Player player) {
-        player.sendMessage(MessageStyle.prefixed(
-                "Your kit has not been loaded because your inventory has purchased items in it."));
+        messages.sendPrefixed(player, "kit.purchased-items");
     }
 
     private boolean purchasedItemSafetyBlocks(Player player) {
@@ -343,20 +334,11 @@ final class KitManager implements AutoCloseable {
     }
 
     private void sendHelp(CommandSender sender) {
-        sender.sendMessage(Component.text("Kit help", NamedTextColor.GREEN));
-        sendHelpLine(sender, "/kit help", "The command to display helpful information.");
-        sendHelpLine(sender, "/kit save", "Saves your current inventory as your kit.");
-        sendHelpLine(sender, "/kit load", "Loads your saved kit into your inventory.");
-        sendHelpLine(sender, "/kit delete", "Deletes your saved kit.");
+        messages.send(sender, "kit.help.title");
+        messages.components("kit.help.lines").forEach(sender::sendMessage);
         if (sender.hasPermission(ADMIN_PERMISSION)) {
-            sendHelpLine(sender, "/kit adminsave", "Saves your inventory as the main kit.");
+            messages.send(sender, "kit.help.admin");
         }
-    }
-
-    private void sendHelpLine(CommandSender sender, String command, String description) {
-        sender.sendMessage(Component.text("- ", NamedTextColor.DARK_GRAY)
-                .append(Component.text(command, NamedTextColor.GREEN))
-                .append(Component.text(" - " + description, NamedTextColor.GRAY)));
     }
 
     private void logDatabaseError(String action, Throwable throwable) {

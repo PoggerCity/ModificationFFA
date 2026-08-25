@@ -3,8 +3,6 @@ package me.poggercity.modificationFFA;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonParseException;
-import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.command.CommandSender;
@@ -80,7 +78,7 @@ final class StatsManager implements Listener, AutoCloseable {
 
     boolean handleCommand(CommandSender sender, String[] args) {
         if (args.length > 1) {
-            sender.sendMessage(MessageStyle.prefixed("Usage: /stats [player]"));
+            sender.sendMessage(MessageStyle.prefixedMessage("stats.usage"));
             return true;
         }
 
@@ -88,7 +86,7 @@ final class StatsManager implements Listener, AutoCloseable {
         String targetName;
         if (args.length == 0) {
             if (!(sender instanceof Player player)) {
-                sender.sendMessage(MessageStyle.prefixed("Usage: /stats <player>"));
+                sender.sendMessage(MessageStyle.prefixedMessage("stats.console-usage"));
                 return true;
             }
             targetId = player.getUniqueId();
@@ -103,9 +101,8 @@ final class StatsManager implements Listener, AutoCloseable {
             } else {
                 Map.Entry<UUID, PlayerStats> known = findKnownPlayer(args[0]);
                 if (known == null) {
-                    sender.sendMessage(MessageStyle.prefix()
-                            .append(Component.text(args[0], NamedTextColor.GREEN))
-                            .append(Component.text(" has no recorded stats.", NamedTextColor.GRAY)));
+                    sender.sendMessage(MessageStyle.prefixedMessage(
+                            "stats.not-recorded", Map.of("player", args[0])));
                     return true;
                 }
                 targetId = known.getKey();
@@ -117,9 +114,8 @@ final class StatsManager implements Listener, AutoCloseable {
                 && !viewer.getUniqueId().equals(targetId)
                 && settingsManager.hideStatsEnabled(targetId)
                 && !viewer.hasPermission("modificationffa.stats.view-hidden")) {
-            sender.sendMessage(MessageStyle.prefix()
-                    .append(Component.text(targetName, NamedTextColor.GREEN))
-                    .append(Component.text(" has hidden their stats.", NamedTextColor.GRAY)));
+            sender.sendMessage(MessageStyle.prefixedMessage(
+                    "stats.hidden", Map.of("player", targetName)));
             return true;
         }
 
@@ -255,28 +251,26 @@ final class StatsManager implements Listener, AutoCloseable {
     }
 
     private void display(CommandSender sender, String name, PlayerStats value) {
-        sender.sendMessage(Component.text("------------- ", NamedTextColor.GRAY)
-                .append(Component.text(name + "'s Stats", NamedTextColor.GREEN))
-                .append(Component.text(" -------------", NamedTextColor.GRAY)));
-        line(sender, "Kills", Long.toString(value.kills));
-        line(sender, "Deaths", Long.toString(value.deaths));
-        line(sender, "K/D Ratio", ratio(value.kills, value.deaths, false));
-        line(sender, "Killstreak", Long.toString(value.killstreak));
-        line(sender, "Best Killstreak", Long.toString(value.bestKillstreak));
-        line(sender, "Cobwebs", Long.toString(value.cobwebs));
-        line(sender, "Pearls", Long.toString(value.pearls));
-        line(sender, "Golden Apples", Long.toString(value.goldenApples));
-        line(sender, "Enchanted Golden Apples", Long.toString(value.enchantedGoldenApples));
-        line(sender, "Chorus", Long.toString(value.chorusFruit));
-        line(sender, "Experience Bottles", Long.toString(value.experienceBottles));
-        line(sender, "Swings", Long.toString(value.swings));
-        line(sender, "Hits", Long.toString(value.hits));
-        line(sender, "Accuracy", ratio(value.hits, value.swings, true));
+        sender.sendMessage(MessageStyle.message("stats.title", Map.of("player", name)));
+        line(sender, "kills", Long.toString(value.kills));
+        line(sender, "deaths", Long.toString(value.deaths));
+        line(sender, "kd-ratio", ratio(value.kills, value.deaths, false));
+        line(sender, "killstreak", Long.toString(value.killstreak));
+        line(sender, "best-killstreak", Long.toString(value.bestKillstreak));
+        line(sender, "cobwebs", Long.toString(value.cobwebs));
+        line(sender, "pearls", Long.toString(value.pearls));
+        line(sender, "golden-apples", Long.toString(value.goldenApples));
+        line(sender, "enchanted-golden-apples", Long.toString(value.enchantedGoldenApples));
+        line(sender, "chorus", Long.toString(value.chorusFruit));
+        line(sender, "experience-bottles", Long.toString(value.experienceBottles));
+        line(sender, "swings", Long.toString(value.swings));
+        line(sender, "hits", Long.toString(value.hits));
+        line(sender, "accuracy", ratio(value.hits, value.swings, true));
     }
 
-    private void line(CommandSender sender, String label, String value) {
-        sender.sendMessage(Component.text("- " + label + ": ", NamedTextColor.GRAY)
-                .append(Component.text(value, NamedTextColor.GREEN)));
+    private void line(CommandSender sender, String key, String value) {
+        sender.sendMessage(MessageStyle.message(
+                "stats.lines." + key, Map.of("value", value)));
     }
 
     private String ratio(long numerator, long denominator, boolean percentage) {

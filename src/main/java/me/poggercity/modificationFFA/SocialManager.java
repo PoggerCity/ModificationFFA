@@ -1,7 +1,6 @@
 package me.poggercity.modificationFFA;
 
 import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
 import org.bukkit.Sound;
 import org.bukkit.command.CommandSender;
@@ -22,12 +21,14 @@ final class SocialManager implements Listener {
 
     private final ModificationFFA plugin;
     private final SettingsManager settingsManager;
+    private final PluginMessages messages;
     private final Map<UUID, UUID> lastSender = new HashMap<>();
     private final Map<UUID, UUID> conversationPartner = new HashMap<>();
 
-    SocialManager(ModificationFFA plugin, SettingsManager settingsManager) {
+    SocialManager(ModificationFFA plugin, SettingsManager settingsManager, PluginMessages messages) {
         this.plugin = plugin;
         this.settingsManager = settingsManager;
+        this.messages = messages;
     }
 
     boolean handleMessage(CommandSender sender, String[] args) {
@@ -36,17 +37,17 @@ final class SocialManager implements Listener {
             return true;
         }
         if (args.length < 2) {
-            player.sendMessage(MessageStyle.prefixed("Usage: /msg <player> <message>"));
+            messages.sendPrefixed(player, "social.msg-usage");
             return true;
         }
 
         Player target = findOnlinePlayer(args[0]);
         if (target == null) {
-            player.sendMessage(MessageStyle.prefixed("Player " + args[0] + " is not online."));
+            messages.sendPrefixed(player, "core.player-offline", Map.of("player", args[0]));
             return true;
         }
         if (target.getUniqueId().equals(player.getUniqueId())) {
-            player.sendMessage(MessageStyle.prefixed("You cannot message yourself."));
+            messages.sendPrefixed(player, "social.self-message");
             return true;
         }
 
@@ -59,18 +60,18 @@ final class SocialManager implements Listener {
             return true;
         }
         if (args.length == 0) {
-            player.sendMessage(MessageStyle.prefixed("Usage: /reply <message>"));
+            messages.sendPrefixed(player, "social.reply-usage");
             return true;
         }
 
         UUID targetId = lastSender.get(player.getUniqueId());
         if (targetId == null) {
-            player.sendMessage(MessageStyle.prefixed("You have nobody to reply to."));
+            messages.sendPrefixed(player, "social.nobody-to-reply");
             return true;
         }
         Player target = Bukkit.getPlayer(targetId);
         if (target == null) {
-            player.sendMessage(MessageStyle.prefixed("That player is no longer online."));
+            messages.sendPrefixed(player, "social.conversation-offline");
             return true;
         }
         return sendPrivateMessage(player, target, joinMessage(args, 0));
@@ -82,18 +83,18 @@ final class SocialManager implements Listener {
             return true;
         }
         if (args.length == 0) {
-            player.sendMessage(MessageStyle.prefixed("Usage: /continue <message>"));
+            messages.sendPrefixed(player, "social.continue-usage");
             return true;
         }
 
         UUID targetId = conversationPartner.get(player.getUniqueId());
         if (targetId == null) {
-            player.sendMessage(MessageStyle.prefixed("You have no conversation to continue."));
+            messages.sendPrefixed(player, "social.no-conversation");
             return true;
         }
         Player target = Bukkit.getPlayer(targetId);
         if (target == null) {
-            player.sendMessage(MessageStyle.prefixed("That player is no longer online."));
+            messages.sendPrefixed(player, "social.conversation-offline");
             return true;
         }
         return sendPrivateMessage(player, target, joinMessage(args, 0));
@@ -119,7 +120,7 @@ final class SocialManager implements Listener {
     @EventHandler
     public void onJoin(PlayerJoinEvent event) {
         event.joinMessage(null);
-        Component message = presenceMessage(event.getPlayer(), "+", NamedTextColor.GREEN);
+        Component message = messages.component("social.join", Map.of("player", event.getPlayer().getName()));
         Bukkit.getScheduler().runTask(plugin, () -> Bukkit.getOnlinePlayers().stream()
                 .filter(settingsManager::connectionMessagesEnabled)
                 .forEach(viewer -> viewer.sendMessage(message)));
@@ -129,7 +130,7 @@ final class SocialManager implements Listener {
     public void onQuit(PlayerQuitEvent event) {
         Player player = event.getPlayer();
         event.quitMessage(null);
-        Component message = presenceMessage(player, "-", NamedTextColor.RED);
+        Component message = messages.component("social.quit", Map.of("player", player.getName()));
         Bukkit.getOnlinePlayers().stream()
                 .filter(viewer -> !viewer.equals(player))
                 .filter(settingsManager::connectionMessagesEnabled)
@@ -155,25 +156,18 @@ final class SocialManager implements Listener {
     }
 
     private Component privateMessage(String from, String to, String message) {
-        return Component.text(from, NamedTextColor.GREEN)
-                .append(Component.text(" » ", NamedTextColor.DARK_GRAY))
-                .append(Component.text(to, NamedTextColor.GREEN))
-                .append(Component.text(" | ", NamedTextColor.DARK_GRAY))
-                .append(Component.text(message, NamedTextColor.GRAY));
-    }
-
-    private Component presenceMessage(Player player, String marker, NamedTextColor markerColor) {
-        return Component.text("[", NamedTextColor.DARK_GRAY)
-                .append(Component.text(marker, markerColor))
-                .append(Component.text("] ", NamedTextColor.DARK_GRAY))
-                .append(Component.text(player.getName(), NamedTextColor.GRAY));
+        return messages.componentWithComponents("social.private-message", Map.of(
+                "sender", Component.text(from, MessageStyle.accent()),
+                "receiver", Component.text(to, MessageStyle.accent()),
+                "message", Component.text(message, MessageStyle.text())
+        ));
     }
 
     private Player requirePlayer(CommandSender sender) {
         if (sender instanceof Player player) {
             return player;
         }
-        sender.sendMessage(Component.text("Only players can use this command.", NamedTextColor.RED));
+        messages.send(sender, "core.players-only");
         return null;
     }
 

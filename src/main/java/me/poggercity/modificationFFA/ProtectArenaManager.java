@@ -1,7 +1,5 @@
 package me.poggercity.modificationFFA;
 
-import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextDecoration;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
@@ -50,6 +48,7 @@ final class ProtectArenaManager implements Listener, AutoCloseable {
     private static final String EXEMPT_WAND = "exempt";
 
     private final ModificationFFA plugin;
+    private final PluginMessages messages;
     private final ArenaManager arenaManager;
     private final ProtectedArenaDatabase database;
     private final NamespacedKey wandKey;
@@ -61,9 +60,10 @@ final class ProtectArenaManager implements Listener, AutoCloseable {
     private BukkitTask mutationFlushTask;
     private boolean ready;
 
-    ProtectArenaManager(ModificationFFA plugin, ArenaManager arenaManager) {
+    ProtectArenaManager(ModificationFFA plugin, ArenaManager arenaManager, PluginMessages messages) {
         this.plugin = plugin;
         this.arenaManager = arenaManager;
+        this.messages = messages;
         this.database = new ProtectedArenaDatabase(plugin.getDataFolder().toPath().resolve("protected-arenas.db"));
         this.wandKey = new NamespacedKey(plugin, "protect_arena_wand");
     }
@@ -82,11 +82,11 @@ final class ProtectArenaManager implements Listener, AutoCloseable {
 
     boolean handleCommand(CommandSender sender, String[] args) {
         if (!sender.hasPermission(ADMIN_PERMISSION)) {
-            sender.sendMessage(MessageStyle.permissionDenied(ADMIN_PERMISSION));
+            messages.sendPrefixed(sender, "core.no-permission", Map.of("permission", ADMIN_PERMISSION));
             return true;
         }
         if (!ready) {
-            sender.sendMessage(MessageStyle.prefixed("Protected arenas are unavailable. Check the console."));
+            messages.sendPrefixed(sender, "protect-arena.unavailable");
             return true;
         }
         if (args.length == 0 || args[0].equalsIgnoreCase("help")) {
@@ -141,18 +141,18 @@ final class ProtectArenaManager implements Listener, AutoCloseable {
 
     private boolean createArena(CommandSender sender, String[] args) {
         if (!(sender instanceof Player player) || args.length != 2) {
-            sender.sendMessage(MessageStyle.prefixed("Usage: /protectarena create <name>"));
+            messages.sendPrefixed(sender, "protect-arena.usage.create");
             return true;
         }
         String name = args[1];
         String arenaKey = key(name);
         RegionSelection selection = mainSelections.get(player.getUniqueId());
         if (!validName(name) || selection == null || !selection.complete() || !selection.sameWorld()) {
-            player.sendMessage(MessageStyle.prefixed("Select two corners in one world and use a name containing only letters, numbers, _ or -."));
+            messages.sendPrefixed(player, "protect-arena.selection-invalid");
             return true;
         }
         if (arenas.containsKey(arenaKey) || !pending.add("arena:" + arenaKey)) {
-            player.sendMessage(MessageStyle.prefixed("A protected arena with that name already exists."));
+            messages.sendPrefixed(player, "protect-arena.already-exists");
             return true;
         }
         RegionBounds bounds = RegionBounds.from(selection);
@@ -165,20 +165,20 @@ final class ProtectArenaManager implements Listener, AutoCloseable {
                         return;
                     }
                     arenas.put(arenaKey, arena);
-                    player.sendMessage(MessageStyle.prefixed("Created protected arena " + name + "."));
+                    messages.sendPrefixed(player, "protect-arena.created", Map.of("name", name));
                 }));
         return true;
     }
 
     private boolean deleteArena(CommandSender sender, String[] args) {
         if (args.length != 2) {
-            sender.sendMessage(MessageStyle.prefixed("Usage: /protectarena delete <name>"));
+            messages.sendPrefixed(sender, "protect-arena.usage.delete");
             return true;
         }
         String arenaKey = key(args[1]);
         ProtectedArena arena = arenas.get(arenaKey);
         if (arena == null || !pending.add("arena:" + arenaKey)) {
-            sender.sendMessage(MessageStyle.prefixed("That protected arena does not exist or is already being changed."));
+            messages.sendPrefixed(sender, "protect-arena.not-found-or-busy");
             return true;
         }
         database.deleteArena(arenaKey).whenComplete((ignored, error) -> sync(() -> {
@@ -188,7 +188,7 @@ final class ProtectArenaManager implements Listener, AutoCloseable {
                 return;
             }
             arenas.remove(arenaKey);
-            sender.sendMessage(MessageStyle.prefixed("Deleted protected arena " + arena.name + "."));
+            messages.sendPrefixed(sender, "protect-arena.deleted", Map.of("name", arena.name));
         }));
         return true;
     }
@@ -211,24 +211,24 @@ final class ProtectArenaManager implements Listener, AutoCloseable {
 
     private boolean createExemption(CommandSender sender, String[] args) {
         if (!(sender instanceof Player player) || args.length != 4) {
-            sender.sendMessage(MessageStyle.prefixed("Usage: /protectarena exempt create <arena> <name>"));
+            messages.sendPrefixed(sender, "protect-arena.usage.exempt-create");
             return true;
         }
         ProtectedArena arena = arenas.get(key(args[2]));
         String exemptionKey = key(args[3]);
         RegionSelection selection = exemptionSelections.get(player.getUniqueId());
         if (arena == null || !validName(args[3]) || selection == null || !selection.complete() || !selection.sameWorld()) {
-            player.sendMessage(MessageStyle.prefixed("Select two exemption corners and provide a valid protected arena and name."));
+            messages.sendPrefixed(player, "protect-arena.exemption.selection-invalid");
             return true;
         }
         RegionBounds bounds = RegionBounds.from(selection);
         if (!arena.bounds.encloses(bounds)) {
-            player.sendMessage(MessageStyle.prefixed("The exemption must be completely inside its protected arena."));
+            messages.sendPrefixed(player, "protect-arena.exemption.outside");
             return true;
         }
         String operation = "exempt:" + arena.key + ":" + exemptionKey;
         if (arena.exemptions.containsKey(exemptionKey) || !pending.add(operation)) {
-            player.sendMessage(MessageStyle.prefixed("That exemption already exists or is being changed."));
+            messages.sendPrefixed(player, "protect-arena.exemption.already-exists-or-busy");
             return true;
         }
         Exemption exemption = new Exemption(exemptionKey, args[3], bounds);
@@ -240,14 +240,15 @@ final class ProtectArenaManager implements Listener, AutoCloseable {
                         return;
                     }
                     arena.exemptions.put(exemptionKey, exemption);
-                    player.sendMessage(MessageStyle.prefixed("Created exemption " + exemption.name + " inside " + arena.name + "."));
+                    messages.sendPrefixed(player, "protect-arena.exemption.created", Map.of(
+                            "name", exemption.name, "arena", arena.name));
                 }));
         return true;
     }
 
     private boolean deleteExemption(CommandSender sender, String[] args) {
         if (args.length != 4) {
-            sender.sendMessage(MessageStyle.prefixed("Usage: /protectarena exempt delete <arena> <name>"));
+            messages.sendPrefixed(sender, "protect-arena.usage.exempt-delete");
             return true;
         }
         ProtectedArena arena = arenas.get(key(args[2]));
@@ -255,7 +256,7 @@ final class ProtectArenaManager implements Listener, AutoCloseable {
         Exemption exemption = arena == null ? null : arena.exemptions.get(exemptionKey);
         String operation = arena == null ? "" : "exempt:" + arena.key + ":" + exemptionKey;
         if (exemption == null || !pending.add(operation)) {
-            sender.sendMessage(MessageStyle.prefixed("That exemption does not exist or is already being changed."));
+            messages.sendPrefixed(sender, "protect-arena.exemption.not-found-or-busy");
             return true;
         }
         database.deleteExemption(arena.key, exemptionKey).whenComplete((ignored, error) -> sync(() -> {
@@ -265,7 +266,7 @@ final class ProtectArenaManager implements Listener, AutoCloseable {
                 return;
             }
             arena.exemptions.remove(exemptionKey);
-            sender.sendMessage(MessageStyle.prefixed("Deleted exemption " + exemption.name + "."));
+            messages.sendPrefixed(sender, "protect-arena.exemption.deleted", Map.of("name", exemption.name));
         }));
         return true;
     }
@@ -389,8 +390,12 @@ final class ProtectArenaManager implements Listener, AutoCloseable {
                 : new RegionSelection(current.first(), point);
         selections.put(event.getPlayer().getUniqueId(), updated);
         String corner = action == Action.LEFT_CLICK_BLOCK ? "first" : "second";
-        event.getPlayer().sendMessage(MessageStyle.prefixed("Selected the " + corner + " " + mode + " corner at "
-                + point.x() + ", " + point.y() + ", " + point.z() + "."));
+        messages.sendPrefixed(event.getPlayer(), "protect-arena.position-set", Map.of(
+                "position", corner,
+                "mode", mode,
+                "x", point.x(),
+                "y", point.y(),
+                "z", point.z()));
     }
 
     @EventHandler
@@ -487,36 +492,30 @@ final class ProtectArenaManager implements Listener, AutoCloseable {
 
     private boolean giveWand(CommandSender sender, String mode) {
         if (!(sender instanceof Player player)) {
-            sender.sendMessage(MessageStyle.prefixed("Only players can receive selection wands."));
+            messages.sendPrefixed(sender, "protect-arena.wand.players-only");
             return true;
         }
         ItemStack wand = new ItemStack(Material.WOODEN_AXE);
         ItemMeta meta = wand.getItemMeta();
-        meta.displayName(Component.text(mode.equals(MAIN_WAND) ? "Protected Arena Wand" : "Protected Exemption Wand", NamedTextColor.LIGHT_PURPLE)
-                .decoration(TextDecoration.ITALIC, false));
+        String wandName = mode.equals(MAIN_WAND) ? "protect-arena.wand.arena-name" : "protect-arena.wand.exemption-name";
+        meta.displayName(messages.component(wandName).decoration(TextDecoration.ITALIC, false));
         meta.lore(List.of(
-                Component.text("Left-click: first corner", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false),
-                Component.text("Right-click: second corner", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false)
+                messages.component("protect-arena.wand.left-click").decoration(TextDecoration.ITALIC, false),
+                messages.component("protect-arena.wand.right-click").decoration(TextDecoration.ITALIC, false)
         ));
         meta.getPersistentDataContainer().set(wandKey, PersistentDataType.STRING, mode);
         wand.setItemMeta(meta);
         player.getInventory().addItem(wand).values().forEach(item -> player.getWorld().dropItemNaturally(player.getLocation(), item));
-        player.sendMessage(MessageStyle.prefixed("You received the " + mode + " selection wand."));
+        messages.sendPrefixed(player, "protect-arena.wand.received", Map.of("mode", mode));
         return true;
     }
 
     private void help(CommandSender sender) {
-        sender.sendMessage(Component.text("----- protect arena help -----", NamedTextColor.GRAY));
-        sender.sendMessage(Component.text("/protectarena wand", NamedTextColor.GREEN));
-        sender.sendMessage(Component.text("/protectarena create <name>", NamedTextColor.GREEN));
-        sender.sendMessage(Component.text("/protectarena delete <name>", NamedTextColor.GREEN));
-        sender.sendMessage(Component.text("/protectarena exempt wand", NamedTextColor.GREEN));
-        sender.sendMessage(Component.text("/protectarena exempt create <arena> <name>", NamedTextColor.GREEN));
-        sender.sendMessage(Component.text("/protectarena exempt delete <arena> <name>", NamedTextColor.GREEN));
+        messages.sendLines(sender, "protect-arena.help", Map.of());
     }
 
     private void exemptionHelp(CommandSender sender) {
-        sender.sendMessage(MessageStyle.prefixed("Use /protectarena exempt <wand|create|delete>."));
+        messages.sendPrefixed(sender, "protect-arena.exemption.help");
     }
 
     private void persist(List<ProtectedArenaDatabase.BlockMutation> mutations) {
@@ -556,7 +555,7 @@ final class ProtectArenaManager implements Listener, AutoCloseable {
 
     private void storageError(CommandSender sender, Throwable error) {
         plugin.getLogger().log(Level.SEVERE, "Could not update protected-arenas.db", error);
-        sender.sendMessage(MessageStyle.prefixed("The protected arena change could not be saved."));
+        messages.sendPrefixed(sender, "protect-arena.save-failed");
     }
 
     private void sync(Runnable task) {

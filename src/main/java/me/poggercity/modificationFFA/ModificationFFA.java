@@ -19,8 +19,6 @@ import org.bukkit.scheduler.BukkitTask;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -56,6 +54,7 @@ public final class ModificationFFA extends JavaPlugin implements Listener {
     private ProtectArenaManager protectArenaManager;
     private SwordManager swordManager;
     private PetManager petManager;
+    private PluginMessages pluginMessages;
     private LinkMessages linkMessages;
     private BukkitTask reminderTask;
     private Sound reminderSound;
@@ -91,9 +90,8 @@ public final class ModificationFFA extends JavaPlugin implements Listener {
 
     @Override
     public void onEnable() {
-        if (!Files.exists(getDataFolder().toPath().resolve("messages.json"))) {
-            saveResource("messages.json", false);
-        }
+        pluginMessages = new PluginMessages(this);
+        MessageStyle.installMessages(pluginMessages);
 
         try {
             applyConfiguration();
@@ -105,29 +103,29 @@ public final class ModificationFFA extends JavaPlugin implements Listener {
 
         settingsManager = new SettingsManager(this);
         settingsManager.start();
-        kitManager = new KitManager(this, settingsManager);
+        kitManager = new KitManager(this, settingsManager, pluginMessages);
         kitManager.start();
         binManager = new BinManager(this);
         binManager.start();
-        playerUtilityCommands = new PlayerUtilityCommands();
+        playerUtilityCommands = new PlayerUtilityCommands(pluginMessages);
         statsManager = new StatsManager(this, settingsManager);
         statsManager.start();
-        biomeManager = new BiomeManager(this);
+        biomeManager = new BiomeManager(this, pluginMessages);
         biomeManager.start();
         tokenManager = new TokenManager(this);
         tokenManager.start();
-        spawnManager = new SpawnManager(this);
+        spawnManager = new SpawnManager(this, pluginMessages);
         spawnManager.start();
-        combatManager = new CombatManager(this, statsManager, spawnManager, tokenManager);
+        combatManager = new CombatManager(this, statsManager, spawnManager, tokenManager, pluginMessages);
         combatManager.start();
-        socialManager = new SocialManager(this, settingsManager);
-        arenaManager = new ArenaManager(this);
+        socialManager = new SocialManager(this, settingsManager, pluginMessages);
+        arenaManager = new ArenaManager(this, pluginMessages);
         if (!arenaManager.start()) {
             getLogger().severe("ModificationFFA stopped because arenas.json could not be loaded safely.");
             getServer().getPluginManager().disablePlugin(this);
             return;
         }
-        protectArenaManager = new ProtectArenaManager(this, arenaManager);
+        protectArenaManager = new ProtectArenaManager(this, arenaManager, pluginMessages);
         if (!protectArenaManager.start()) {
             getLogger().severe("ModificationFFA stopped because protected-arenas.db could not be loaded safely.");
             getServer().getPluginManager().disablePlugin(this);
@@ -137,7 +135,7 @@ public final class ModificationFFA extends JavaPlugin implements Listener {
         swordManager.start();
         mergeManager = new MergeManager(this, swordManager);
         mergeManager.start();
-        petManager = new PetManager(this);
+        petManager = new PetManager(this, pluginMessages);
         petManager.start();
         getServer().getPluginManager().registerEvents(statsManager, this);
         getServer().getPluginManager().registerEvents(biomeManager, this);
@@ -332,8 +330,7 @@ public final class ModificationFFA extends JavaPlugin implements Listener {
             long remaining = cooldownNanos - (now - lastUse);
             if (remaining > 0) {
                 long remainingSeconds = Math.max(1L, TimeUnit.NANOSECONDS.toSeconds(remaining - 1L) + 1L);
-                String message = linkMessages.cooldown().replace("{seconds}", Long.toString(remainingSeconds));
-                player.sendMessage(Component.text(message, MessageStyle.text()));
+                player.sendMessage(linkMessages.cooldown(remainingSeconds));
                 return true;
             }
         }
@@ -353,22 +350,11 @@ public final class ModificationFFA extends JavaPlugin implements Listener {
 
         if (args.length > 0 && args[0].equalsIgnoreCase("help")) {
             String root = "/" + preferredRootLabel();
-            sender.sendMessage(Component.text("------ ", MessageStyle.text())
-                    .append(Component.text(preferredRootLabel() + " help", MessageStyle.accent()))
-                    .append(Component.text(" ------", MessageStyle.text())));
-            modificationHelpLine(sender, root + " help", "The command to display helpful information.");
-            modificationHelpLine(sender, root + " settings", "Lets you access your settings.");
-            modificationHelpLine(sender, root + " stats", "Lets you view player statistics.");
-            modificationHelpLine(sender, root + " find", "Find the location of a player.");
-            modificationHelpLine(sender, root + " bin", "Open the " + PluginTheme.menuName() + " Bin.");
-            modificationHelpLine(sender, root + " clear", "Clear your inventory.");
-            modificationHelpLine(sender, root + " ping", "Check a player's ping to the server.");
-            modificationHelpLine(sender, root + " executioner", "Trade Executioner heads for kill tokens.");
-            modificationHelpLine(sender, root + " merge", "Merge your Punch Bows' durability.");
-            modificationHelpLine(sender, "/pet help", "View and manage your cosmetic pet.");
+            Map<String, Object> placeholders = Map.of("root", root);
+            pluginMessages.send(sender, "modification.help.title", placeholders);
+            pluginMessages.sendLines(sender, "modification.help.lines", placeholders);
             if (sender.hasPermission("modificationffa.reload")) {
-                modificationHelpLine(sender, root + " reload",
-                        "Reload config.yml and messages.json.");
+                pluginMessages.send(sender, "modification.help.reload", placeholders);
             }
             return true;
         }
@@ -425,12 +411,6 @@ public final class ModificationFFA extends JavaPlugin implements Listener {
         return MODIFICATION_SUBCOMMANDS.stream().anyMatch(value::equalsIgnoreCase);
     }
 
-    private void modificationHelpLine(CommandSender sender, String command, String description) {
-        sender.sendMessage(Component.text("- ", MessageStyle.text())
-                .append(Component.text(command, MessageStyle.accent()))
-                .append(Component.text(" - " + description, MessageStyle.text())));
-    }
-
     private String preferredRootLabel() {
         return rootAliasesAtLoad.stream().findFirst().orElse("modify");
     }
@@ -453,32 +433,26 @@ public final class ModificationFFA extends JavaPlugin implements Listener {
             mergeManager.refreshTheme();
             settingsManager.refreshTheme();
             tokenManager.refreshTheme();
-            sender.sendMessage(Component.text(PluginTheme.displayName() + " configuration reloaded.", MessageStyle.accent()));
+            sender.sendMessage(MessageStyle.prefixedMessage("core.reloaded"));
             if (!PluginTheme.rootAliases().equals(rootAliasesAtLoad)) {
-                sender.sendMessage(MessageStyle.prefixed("Command alias changes will apply after the next restart."));
+                sender.sendMessage(MessageStyle.prefixedMessage("core.aliases-restart"));
             }
         } catch (IOException | RuntimeException exception) {
             getLogger().warning("Could not reload ModificationFFA configuration: " + exception.getMessage());
-            sender.sendMessage(Component.text("Reload failed. Check the console for details.", MessageStyle.error()));
+            sender.sendMessage(MessageStyle.prefixedMessage("core.reload-failed"));
         }
         return true;
     }
 
     private void sendPluginInformation(CommandSender sender) {
-        String pluginName = PluginTheme.displayName();
         String version = getPluginMeta().getVersion();
         List<String> authors = getPluginMeta().getAuthors();
         String author = authors.isEmpty() ? "Unknown" : String.join(", ", authors);
-
-        sender.sendMessage(Component.text("The server is running ", MessageStyle.text())
-                .append(Component.text(pluginName, MessageStyle.accent()))
-                .append(Component.text(" v", MessageStyle.text()))
-                .append(Component.text(version, MessageStyle.accent())));
-        sender.sendMessage(Component.text("The plugin was created by: ", MessageStyle.text())
-                .append(Component.text(author, MessageStyle.accent())));
-        sender.sendMessage(Component.text("Run ", MessageStyle.text())
-                .append(Component.text("/" + preferredRootLabel() + " help", MessageStyle.accent()))
-                .append(Component.text(" for sub commands.", MessageStyle.text())));
+        pluginMessages.sendLines(sender, "modification.info", Map.of(
+                "version", version,
+                "author", author,
+                "root", "/" + preferredRootLabel()
+        ));
     }
 
     private void applyConfiguration() throws IOException {
@@ -486,17 +460,17 @@ public final class ModificationFFA extends JavaPlugin implements Listener {
         PluginTheme loadedTheme = PluginTheme.from(config);
         String discordUrl = requireConfigString(config, "links.discord");
         String storeUrl = requireConfigString(config, "links.store");
-        Path messagesPath = getDataFolder().toPath().resolve("messages.json");
-
-        LinkMessages loadedMessages = LinkMessages.load(
-                messagesPath, discordUrl, storeUrl, loadedTheme.textColor(), loadedTheme.accentColor());
+        PluginTheme.install(loadedTheme);
+        if (!pluginMessages.reload()) {
+            throw new IOException("messages.yml is invalid");
+        }
+        LinkMessages loadedMessages = LinkMessages.load(pluginMessages, discordUrl, storeUrl);
         int loadedCooldown = Math.max(0, config.getInt("commands.cooldown-seconds", 3));
         Sound loadedSound = loadReminderSound(config);
 
         linkMessages = loadedMessages;
         commandCooldownSeconds = loadedCooldown;
         reminderSound = loadedSound;
-        PluginTheme.install(loadedTheme);
         scheduleReminders(config);
     }
 

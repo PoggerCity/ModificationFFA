@@ -2,8 +2,6 @@ package me.poggercity.modificationFFA;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
-import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextDecoration;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
@@ -50,6 +48,7 @@ final class BiomeManager implements Listener, AutoCloseable {
     private static final List<String> ADMIN_SUBCOMMANDS = List.of("wand", "create", "delete");
 
     private final ModificationFFA plugin;
+    private final PluginMessages messages;
     private final NamespacedKey wandKey;
     private final Path dataFile;
     private final Gson gson = new GsonBuilder().disableHtmlEscaping().create();
@@ -58,8 +57,9 @@ final class BiomeManager implements Listener, AutoCloseable {
 
     private volatile List<Region> regions = List.of();
 
-    BiomeManager(ModificationFFA plugin) {
+    BiomeManager(ModificationFFA plugin, PluginMessages messages) {
         this.plugin = Objects.requireNonNull(plugin, "plugin");
+        this.messages = Objects.requireNonNull(messages, "messages");
         this.wandKey = new NamespacedKey(plugin, "biome_wand");
         this.dataFile = plugin.getDataFolder().toPath().resolve("biomes.json");
         this.writer = Executors.newSingleThreadExecutor(task -> {
@@ -89,7 +89,7 @@ final class BiomeManager implements Listener, AutoCloseable {
                     yield true;
                 }
                 if (!(sender instanceof Player player)) {
-                    sender.sendMessage(MessageStyle.prefixed("This command can only be used by players."));
+                    messages.sendPrefixed(sender, "core.players-only");
                     yield true;
                 }
                 giveWand(player);
@@ -118,16 +118,13 @@ final class BiomeManager implements Listener, AutoCloseable {
 
     boolean handleFind(CommandSender sender, String[] args) {
         if (args.length != 1) {
-            sender.sendMessage(MessageStyle.prefixed("Usage: /find <player>"));
+            messages.sendPrefixed(sender, "biome.find.usage");
             return true;
         }
 
         Player target = Bukkit.getPlayerExact(args[0]);
         if (target == null) {
-            sender.sendMessage(MessageStyle.prefix()
-                    .append(Component.text("Player ", NamedTextColor.GRAY))
-                    .append(Component.text(args[0], NamedTextColor.GREEN))
-                    .append(Component.text(" is not online.", NamedTextColor.GRAY)));
+            messages.sendPrefixed(sender, "core.player-offline", Map.of("player", args[0]));
             return true;
         }
 
@@ -144,10 +141,10 @@ final class BiomeManager implements Listener, AutoCloseable {
                 location.getY(),
                 location.getZ()
         );
-        sender.sendMessage(MessageStyle.prefix()
-                .append(Component.text(target.getName(), NamedTextColor.GREEN))
-                .append(Component.text(" is at ", NamedTextColor.GRAY))
-                .append(Component.text(coordinates + " (" + biome + ").", NamedTextColor.GREEN)));
+        messages.sendPrefixed(sender, "biome.find.result", Map.of(
+                "player", target.getName(),
+                "coordinates", coordinates,
+                "biome", biome));
         return true;
     }
 
@@ -193,7 +190,7 @@ final class BiomeManager implements Listener, AutoCloseable {
 
         Player player = event.getPlayer();
         if (!player.hasPermission(ADMIN_PERMISSION)) {
-            player.sendMessage(MessageStyle.permissionDenied(ADMIN_PERMISSION));
+            messages.sendPrefixed(player, "core.no-permission", Map.of("permission", ADMIN_PERMISSION));
             return;
         }
 
@@ -218,10 +215,12 @@ final class BiomeManager implements Listener, AutoCloseable {
             corner = 2;
         }
 
-        player.sendMessage(MessageStyle.prefix()
-                .append(Component.text("Position " + corner + " set to ", NamedTextColor.GRAY))
-                .append(Component.text(point.x() + ", " + point.y() + ", " + point.z(), NamedTextColor.GREEN))
-                .append(Component.text(" in " + point.worldName() + ".", NamedTextColor.GRAY)));
+        messages.sendPrefixed(player, "biome.position-set", Map.of(
+                "position", corner,
+                "x", point.x(),
+                "y", point.y(),
+                "z", point.z(),
+                "world", point.worldName()));
     }
 
     @Override
@@ -242,13 +241,10 @@ final class BiomeManager implements Listener, AutoCloseable {
     private void giveWand(Player player) {
         ItemStack wand = new ItemStack(Material.BLAZE_ROD);
         ItemMeta meta = wand.getItemMeta();
-        meta.displayName(Component.text("Biome Wand", NamedTextColor.LIGHT_PURPLE)
-                .decoration(TextDecoration.ITALIC, false));
+        meta.displayName(messages.component("biome.wand.name").decoration(TextDecoration.ITALIC, false));
         meta.lore(List.of(
-                Component.text("Left-click to set position 1.", NamedTextColor.GRAY)
-                        .decoration(TextDecoration.ITALIC, false),
-                Component.text("Right-click to set position 2.", NamedTextColor.GRAY)
-                        .decoration(TextDecoration.ITALIC, false)
+                messages.component("biome.wand.left-click").decoration(TextDecoration.ITALIC, false),
+                messages.component("biome.wand.right-click").decoration(TextDecoration.ITALIC, false)
         ));
         meta.getPersistentDataContainer().set(wandKey, PersistentDataType.BYTE, (byte) 1);
         wand.setItemMeta(meta);
@@ -256,26 +252,26 @@ final class BiomeManager implements Listener, AutoCloseable {
         for (ItemStack overflow : player.getInventory().addItem(wand).values()) {
             player.getWorld().dropItemNaturally(player.getLocation(), overflow);
         }
-        player.sendMessage(MessageStyle.prefixed("You have received the biome wand."));
+        messages.sendPrefixed(player, "biome.wand-received");
     }
 
     private void createRegion(CommandSender sender, String name) {
         if (!(sender instanceof Player player)) {
-            sender.sendMessage(MessageStyle.prefixed("This command can only be used by players."));
+            messages.sendPrefixed(sender, "core.players-only");
             return;
         }
         if (!isValidName(name)) {
-            sender.sendMessage(MessageStyle.prefixed("Usage: /biome create <name>"));
+            messages.sendPrefixed(sender, "biome.usage.create");
             return;
         }
 
         Selection selection = selections.get(player.getUniqueId());
         if (selection == null || selection.first() == null || selection.second() == null) {
-            player.sendMessage(MessageStyle.prefixed("Select both corners with the biome wand first."));
+            messages.sendPrefixed(player, "biome.select-first");
             return;
         }
         if (!selection.first().worldId().equals(selection.second().worldId())) {
-            player.sendMessage(MessageStyle.prefixed("Both corners must be in the same world."));
+            messages.sendPrefixed(player, "biome.same-world");
             return;
         }
 
@@ -298,34 +294,25 @@ final class BiomeManager implements Listener, AutoCloseable {
         updated.add(region);
         regions = List.copyOf(updated);
         queueSave(regions);
-        player.sendMessage(MessageStyle.prefix()
-                .append(Component.text("Created biome ", NamedTextColor.GRAY))
-                .append(Component.text(name, NamedTextColor.GREEN))
-                .append(Component.text(". Newer overlapping biomes take priority.", NamedTextColor.GRAY)));
+        messages.sendPrefixed(player, "biome.created", Map.of("name", name));
     }
 
     private void deleteRegion(CommandSender sender, String name) {
         if (!isValidName(name)) {
-            sender.sendMessage(MessageStyle.prefixed("Usage: /biome delete <name>"));
+            messages.sendPrefixed(sender, "biome.usage.delete");
             return;
         }
 
         List<Region> updated = new ArrayList<>(regions);
         boolean removed = updated.removeIf(region -> region.name().equalsIgnoreCase(name));
         if (!removed) {
-            sender.sendMessage(MessageStyle.prefix()
-                    .append(Component.text("Biome ", NamedTextColor.GRAY))
-                    .append(Component.text(name, NamedTextColor.GREEN))
-                    .append(Component.text(" does not exist.", NamedTextColor.GRAY)));
+            messages.sendPrefixed(sender, "biome.not-found", Map.of("name", name));
             return;
         }
 
         regions = List.copyOf(updated);
         queueSave(regions);
-        sender.sendMessage(MessageStyle.prefix()
-                .append(Component.text("Deleted biome ", NamedTextColor.GRAY))
-                .append(Component.text(name, NamedTextColor.GREEN))
-                .append(Component.text(".", NamedTextColor.GRAY)));
+        messages.sendPrefixed(sender, "biome.deleted", Map.of("name", name));
     }
 
     private String findRegionName(Location location) {
@@ -345,38 +332,29 @@ final class BiomeManager implements Listener, AutoCloseable {
 
     private void sendRegionList(CommandSender sender) {
         if (regions.isEmpty()) {
-            sender.sendMessage(MessageStyle.prefixed("No custom biomes have been created."));
+            messages.sendPrefixed(sender, "biome.list.empty");
             return;
         }
-        sender.sendMessage(Component.text("Custom biomes", NamedTextColor.GREEN));
+        messages.send(sender, "biome.list.title");
         regions.stream()
                 .sorted(Comparator.comparing(Region::name, String.CASE_INSENSITIVE_ORDER))
-                .forEach(region -> sender.sendMessage(Component.text("- ", NamedTextColor.DARK_GRAY)
-                        .append(Component.text(region.name(), NamedTextColor.GREEN))
-                        .append(Component.text(" (" + region.worldName() + ")", NamedTextColor.GRAY))));
+                .forEach(region -> messages.send(sender, "biome.list.entry", Map.of(
+                        "name", region.name(), "world", region.worldName())));
     }
 
     private void sendHelp(CommandSender sender) {
-        sender.sendMessage(Component.text("Biome help", NamedTextColor.GREEN));
-        helpLine(sender, "/biome list", "Lists all custom biomes.");
+        messages.send(sender, "biome.help.title");
+        messages.send(sender, "biome.help.list");
         if (sender.hasPermission(ADMIN_PERMISSION)) {
-            helpLine(sender, "/biome wand", "Gives you the region-selection wand.");
-            helpLine(sender, "/biome create <name>", "Creates a biome from your selection.");
-            helpLine(sender, "/biome delete <name>", "Deletes a custom biome.");
+            messages.sendLines(sender, "biome.help.admin", Map.of());
         }
-    }
-
-    private void helpLine(CommandSender sender, String command, String description) {
-        sender.sendMessage(Component.text("- ", NamedTextColor.DARK_GRAY)
-                .append(Component.text(command, NamedTextColor.GREEN))
-                .append(Component.text(" - " + description, NamedTextColor.GRAY)));
     }
 
     private boolean requireAdmin(CommandSender sender) {
         if (sender.hasPermission(ADMIN_PERMISSION)) {
             return true;
         }
-        sender.sendMessage(MessageStyle.permissionDenied(ADMIN_PERMISSION));
+        messages.sendPrefixed(sender, "core.no-permission", Map.of("permission", ADMIN_PERMISSION));
         return false;
     }
 

@@ -5,7 +5,6 @@ import com.google.gson.GsonBuilder;
 import net.kyori.adventure.key.Key;
 import net.kyori.adventure.sound.Sound;
 import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.World;
@@ -50,14 +49,16 @@ final class SpawnManager implements Listener, AutoCloseable {
     );
 
     private final ModificationFFA plugin;
+    private final PluginMessages messages;
     private final Path dataFile;
     private final Gson gson = new GsonBuilder().disableHtmlEscaping().create();
     private final Map<UUID, Countdown> countdowns = new HashMap<>();
 
     private StoredSpawn storedSpawn;
 
-    SpawnManager(ModificationFFA plugin) {
+    SpawnManager(ModificationFFA plugin, PluginMessages messages) {
         this.plugin = Objects.requireNonNull(plugin, "plugin");
+        this.messages = Objects.requireNonNull(messages, "messages");
         this.dataFile = plugin.getDataFolder().toPath().resolve("spawn.json");
     }
 
@@ -72,21 +73,21 @@ final class SpawnManager implements Listener, AutoCloseable {
 
     boolean handleSpawn(CommandSender sender, String[] args) {
         if (args.length != 0) {
-            sender.sendMessage(MessageStyle.prefixed("Usage: /spawn"));
+            messages.sendPrefixed(sender, "spawn.usage.spawn");
             return true;
         }
         if (!(sender instanceof Player player)) {
-            sender.sendMessage(MessageStyle.prefixed("This command can only be used by players."));
+            messages.sendPrefixed(sender, "core.players-only");
             return true;
         }
 
         Location spawn = resolveSpawn();
         if (spawn == null) {
-            player.sendMessage(MessageStyle.prefixed("The server spawn has not been set."));
+            messages.sendPrefixed(player, "spawn.not-set");
             return true;
         }
         if (countdowns.containsKey(player.getUniqueId())) {
-            player.sendMessage(MessageStyle.prefixed("You are already teleporting to spawn."));
+            messages.sendPrefixed(player, "spawn.already-teleporting");
             return true;
         }
 
@@ -104,15 +105,16 @@ final class SpawnManager implements Listener, AutoCloseable {
 
     boolean handleSetSpawn(CommandSender sender, String[] args) {
         if (!sender.hasPermission(SET_SPAWN_PERMISSION)) {
-            sender.sendMessage(MessageStyle.permissionDenied(SET_SPAWN_PERMISSION));
+            messages.sendPrefixed(sender, "core.no-permission",
+                    Map.of("permission", SET_SPAWN_PERMISSION));
             return true;
         }
         if (args.length != 0) {
-            sender.sendMessage(MessageStyle.prefixed("Usage: /setspawn"));
+            messages.sendPrefixed(sender, "spawn.usage.setspawn");
             return true;
         }
         if (!(sender instanceof Player player)) {
-            sender.sendMessage(MessageStyle.prefixed("This command can only be used by players."));
+            messages.sendPrefixed(sender, "core.players-only");
             return true;
         }
 
@@ -121,11 +123,11 @@ final class SpawnManager implements Listener, AutoCloseable {
         storedSpawn = StoredSpawn.from(location);
         try {
             saveSpawn();
-            player.sendMessage(MessageStyle.prefixed("The server spawn has been set."));
+            messages.sendPrefixed(player, "spawn.set");
         } catch (IOException exception) {
             storedSpawn = previous;
             plugin.getLogger().log(Level.SEVERE, "Could not save spawn.json", exception);
-            player.sendMessage(MessageStyle.prefixed("The server spawn could not be saved. Check the console."));
+            messages.sendPrefixed(player, "spawn.save-failed");
         }
         return true;
     }
@@ -220,18 +222,17 @@ final class SpawnManager implements Listener, AutoCloseable {
         Location spawn = resolveSpawn();
         if (spawn == null) {
             player.sendActionBar(Component.empty());
-            player.sendMessage(MessageStyle.prefixed("The server spawn has not been set."));
+            messages.sendPrefixed(player, "spawn.not-set");
             return;
         }
 
         player.teleport(spawn);
         player.sendActionBar(Component.empty());
-        player.sendMessage(MessageStyle.prefixed("You have been teleported to spawn."));
+        messages.sendPrefixed(player, "spawn.teleported");
     }
 
     private void showCountdown(Player player, int seconds) {
-        player.sendActionBar(Component.text("Teleporting to spawn in: ", NamedTextColor.GRAY)
-                .append(Component.text(seconds, NamedTextColor.GREEN)));
+        player.sendActionBar(messages.component("spawn.countdown", Map.of("seconds", seconds)));
         player.playSound(COUNTDOWN_SOUND);
     }
 
@@ -243,7 +244,7 @@ final class SpawnManager implements Listener, AutoCloseable {
         cancelTask(countdown);
         player.sendActionBar(Component.empty());
         if (notify) {
-            player.sendMessage(MessageStyle.prefixed("Your teleport to spawn has been cancelled."));
+            messages.sendPrefixed(player, "spawn.cancelled");
         }
     }
 

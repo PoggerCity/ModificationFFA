@@ -121,7 +121,7 @@ final class SettingsManager implements Listener, AutoCloseable {
 
     boolean open(CommandSender sender) {
         if (!(sender instanceof Player player)) {
-            sender.sendMessage(MessageStyle.prefixed("This command can only be used by players."));
+            sender.sendMessage(MessageStyle.prefixedMessage("core.players-only"));
             return true;
         }
         openPage(player, 1);
@@ -395,7 +395,7 @@ final class SettingsManager implements Listener, AutoCloseable {
             player.sendMessage(MessageStyle.permissionDenied(STAFF_PERMISSION));
             return;
         }
-        player.sendMessage(MessageStyle.prefixed("Staff Settings are coming soon."));
+        player.sendMessage(MessageStyle.prefixedMessage("settings.staff-coming-soon"));
     }
 
     private void openPage(Player player, int page) {

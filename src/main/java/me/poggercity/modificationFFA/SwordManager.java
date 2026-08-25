@@ -426,7 +426,7 @@ final class SwordManager implements Listener, AutoCloseable {
 
     private void activateHeldAbility(org.bukkit.command.CommandSender sender) {
         if (!(sender instanceof Player player)) {
-            sender.sendMessage(MessageStyle.prefixed("This command can only be used by players."));
+            sender.sendMessage(MessageStyle.prefixedMessage("core.players-only"));
             return;
         }
         if (!player.hasPermission(ABILITY_PERMISSION)) {
@@ -436,7 +436,7 @@ final class SwordManager implements Listener, AutoCloseable {
 
         SwordType type = swordType(player.getInventory().getItemInMainHand());
         if (type == null) {
-            player.sendMessage(MessageStyle.prefixed("You must be holding a Modification weapon."));
+            player.sendMessage(MessageStyle.prefixedMessage("sword.holding-required"));
             return;
         }
         if (type == SwordType.DASH || type == SwordType.PROTECTION
@@ -444,8 +444,7 @@ final class SwordManager implements Listener, AutoCloseable {
             activateWeaponAbility(player, type);
             return;
         }
-        player.sendMessage(MessageStyle.prefixed(
-                "This weapon's ability activates automatically while fighting."));
+        player.sendMessage(MessageStyle.prefixedMessage("sword.automatic-ability"));
     }
 
     private void giveSword(org.bukkit.command.CommandSender sender, String[] args) {
@@ -462,20 +461,18 @@ final class SwordManager implements Listener, AutoCloseable {
             target = Bukkit.getPlayerExact(args[1]);
             requestedType = args[2];
         } else {
-            sender.sendMessage(MessageStyle.prefixed(
-                    "Usage: /sword give [player] <strike|dash|executioner|void|lifesteal|inhibitor|knockback|protection|resistance|explosion|excavator|punch_bow>"));
+            sender.sendMessage(MessageStyle.prefixedMessage("sword.give-usage"));
             return;
         }
 
         if (target == null) {
-            sender.sendMessage(MessageStyle.prefixed("That player is not online."));
+            sender.sendMessage(MessageStyle.prefixedMessage("sword.player-offline"));
             return;
         }
         SwordType type = SwordType.fromName(requestedType);
         boolean punchBow = PUNCH_BOW_ID.equalsIgnoreCase(requestedType);
         if (type == null && !punchBow) {
-            sender.sendMessage(MessageStyle.prefixed(
-                    "Unknown item. Available: strike, dash, executioner, void, lifesteal, inhibitor, knockback, protection, resistance, explosion, excavator, punch_bow."));
+            sender.sendMessage(MessageStyle.prefixedMessage("sword.unknown-item"));
             return;
         }
 
@@ -488,17 +485,12 @@ final class SwordManager implements Listener, AutoCloseable {
         for (ItemStack item : overflow.values()) {
             target.getWorld().dropItemNaturally(target.getLocation(), item);
         }
-        target.sendMessage(MessageStyle.prefix()
-                .append(Component.text("You have received the ", NamedTextColor.GRAY))
-                .append(itemName)
-                .append(Component.text("!", NamedTextColor.GRAY)));
+        target.sendMessage(MessageStyle.prefixedMessageWithComponents(
+                "sword.received", Map.of("item", itemName)));
         if (!sender.equals(target)) {
-            sender.sendMessage(MessageStyle.prefix()
-                    .append(Component.text("Gave ", NamedTextColor.GRAY))
-                    .append(itemName)
-                    .append(Component.text(" to ", NamedTextColor.GRAY))
-                    .append(Component.text(target.getName(), NamedTextColor.GREEN))
-                    .append(Component.text(".", NamedTextColor.GRAY)));
+            sender.sendMessage(MessageStyle.prefixedMessageWithComponents("sword.given", Map.of(
+                    "item", itemName,
+                    "player", Component.text(target.getName(), NamedTextColor.GREEN))));
         }
     }
 
@@ -840,8 +832,7 @@ final class SwordManager implements Listener, AutoCloseable {
             case DASH -> dash(player);
             case PROTECTION -> activateProtection(player);
             case EXPLOSION -> activateExplosion(player);
-            default -> player.sendMessage(MessageStyle.prefixed(
-                    "This weapon's ability activates automatically while fighting."));
+            default -> player.sendMessage(MessageStyle.prefixedMessage("sword.automatic-ability"));
         }
     }
 
@@ -855,7 +846,7 @@ final class SwordManager implements Listener, AutoCloseable {
         player.setVelocity(direction);
         player.getWorld().playSound(
                 player.getLocation(), Sound.ENTITY_FIREWORK_ROCKET_LAUNCH, 1.0F, 1.0F);
-        player.sendMessage(MessageStyle.prefixed("You have dashed through the air!"));
+        player.sendMessage(MessageStyle.prefixedMessage("sword.dashed"));
     }
 
     private void activateProtection(Player player) {
@@ -869,8 +860,9 @@ final class SwordManager implements Listener, AutoCloseable {
                 currentTick + PROTECTION_DURATION_TICKS, protectedHits));
         player.getWorld().playSound(
                 player.getLocation(), Sound.ITEM_SHIELD_BLOCK, 0.9F, 1.15F);
-        player.sendMessage(MessageStyle.prefixed("Your protection is active for 15 seconds and can block "
-                + protectedHits + " hit" + (protectedHits == 1 ? "." : "s.")));
+        player.sendMessage(MessageStyle.prefixedMessage(
+                protectedHits == 1 ? "sword.protection-one" : "sword.protection-many",
+                Map.of("hits", protectedHits)));
     }
 
     private void activateExplosion(Player player) {
@@ -939,8 +931,8 @@ final class SwordManager implements Listener, AutoCloseable {
         if (player.hasCooldown(held)) {
             if (type != SwordType.EXPLOSION) {
                 long seconds = Math.max(1L, (player.getCooldown(held) + 19L) / 20L);
-                player.sendMessage(MessageStyle.prefixed(
-                        "You must wait " + seconds + " seconds before using this ability again."));
+                player.sendMessage(MessageStyle.prefixedMessage(
+                        "sword.cooldown", Map.of("seconds", seconds)));
             }
             return false;
         }
@@ -1085,13 +1077,7 @@ final class SwordManager implements Listener, AutoCloseable {
             return;
         }
         player.setHealth(newHealth);
-        player.sendMessage(MessageStyle.prefix()
-                .append(Component.text("❤", NamedTextColor.RED)
-                        .decoration(TextDecoration.BOLD, true)
-                        .decoration(TextDecoration.ITALIC, false))
-                .append(Component.text(" Your Lifesteal Sword restored 2 hearts!",
-                                NamedTextColor.GRAY)
-                        .decoration(TextDecoration.BOLD, false)));
+        player.sendMessage(MessageStyle.prefixedMessage("sword.lifesteal-healed"));
     }
 
     private boolean chance(double probability) {
@@ -1099,22 +1085,14 @@ final class SwordManager implements Listener, AutoCloseable {
     }
 
     private void sendHelp(org.bukkit.command.CommandSender sender) {
-        sender.sendMessage(Component.text("------ ", NamedTextColor.GRAY)
-                .append(Component.text("sword help", NamedTextColor.GREEN))
-                .append(Component.text(" ------", NamedTextColor.GRAY)));
-        helpLine(sender, "/sword help", "The command to display helpful information.");
+        sender.sendMessage(MessageStyle.message("sword.help.title"));
+        sender.sendMessage(MessageStyle.message("sword.help.command"));
         if (sender.hasPermission(ABILITY_PERMISSION)) {
-            helpLine(sender, "/sword ability", "Activates your held weapon's ability.");
+            sender.sendMessage(MessageStyle.message("sword.help.ability"));
         }
         if (sender.hasPermission(GIVE_PERMISSION)) {
-            helpLine(sender, "/sword give", "Gives a Modification weapon to a player.");
+            sender.sendMessage(MessageStyle.message("sword.help.give"));
         }
-    }
-
-    private void helpLine(org.bukkit.command.CommandSender sender, String command, String description) {
-        sender.sendMessage(Component.text("- ", NamedTextColor.GRAY)
-                .append(Component.text(command, NamedTextColor.GREEN))
-                .append(Component.text(" - " + description, NamedTextColor.GRAY)));
     }
 
     private static final class ProtectionState {

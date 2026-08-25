@@ -1,82 +1,64 @@
 package me.poggercity.modificationFFA;
 
-import com.google.gson.JsonArray;
-import com.google.gson.JsonElement;
-import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.event.ClickEvent;
 import net.kyori.adventure.text.event.HoverEvent;
-import net.kyori.adventure.text.format.TextColor;
 import net.kyori.adventure.text.format.TextDecoration;
 
-import java.io.IOException;
-import java.io.Reader;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 
-public record LinkMessages(List<Component> discord, List<Component> store, String cooldown) {
+public final class LinkMessages {
 
-    public static LinkMessages load(Path path, String discordUrl, String storeUrl,
-                                    TextColor textColor, TextColor accentColor) throws IOException {
-        JsonObject root;
-        try (Reader reader = Files.newBufferedReader(path, StandardCharsets.UTF_8)) {
-            root = JsonParser.parseReader(reader).getAsJsonObject();
-        }
+    private final List<Component> discord;
+    private final List<Component> store;
+    private final PluginMessages messages;
 
-        String separator = requiredString(root, "separator");
-        String cooldown = requiredString(root, "cooldown");
-        List<Component> discord = buildMessage(
-                root.getAsJsonObject("discord"), separator, discordUrl, textColor, accentColor);
-        List<Component> store = buildMessage(
-                root.getAsJsonObject("store"), separator, storeUrl, textColor, accentColor);
-        return new LinkMessages(discord, store, cooldown);
+    private LinkMessages(List<Component> discord, List<Component> store, PluginMessages messages) {
+        this.discord = List.copyOf(discord);
+        this.store = List.copyOf(store);
+        this.messages = messages;
     }
 
-    private static List<Component> buildMessage(JsonObject template, String separator, String url,
-                                                TextColor textColor, TextColor accentColor) {
-        if (template == null) {
-            throw new IllegalArgumentException("A message template is missing from messages.json.");
-        }
+    public static LinkMessages load(PluginMessages messages, String discordUrl, String storeUrl) {
+        Objects.requireNonNull(messages, "messages");
+        List<Component> discord = buildMessage(messages, "discord", discordUrl);
+        List<Component> store = buildMessage(messages, "store", storeUrl);
+        return new LinkMessages(discord, store, messages);
+    }
 
+    public List<Component> discord() {
+        return discord;
+    }
+
+    public List<Component> store() {
+        return store;
+    }
+
+    public Component cooldown(long seconds) {
+        return messages.component("links.cooldown", Map.of("seconds", seconds));
+    }
+
+    private static List<Component> buildMessage(PluginMessages messages, String name, String url) {
         validateWebUrl(url);
-        JsonArray lines = template.getAsJsonArray("lines");
-        if (lines == null) {
-            throw new IllegalArgumentException("A message template is missing its lines array.");
-        }
-
+        String root = "links." + name;
+        Component separator = messages.component("links.separator").decorate(TextDecoration.STRIKETHROUGH);
         List<Component> result = new ArrayList<>();
-        result.add(Component.text(separator, textColor).decorate(TextDecoration.STRIKETHROUGH));
-        for (JsonElement line : lines) {
-            result.add(Component.text(line.getAsString(), textColor));
-        }
+        result.add(separator);
+        result.addAll(messages.components(root + ".lines"));
         result.add(Component.empty());
 
-        String label = requiredString(template, "linkLabel");
-        String hoverText = requiredString(template, "hoverText");
-        Component link = Component.text(url, accentColor)
+        Component hover = messages.component(root + ".hover");
+        Component link = messages.component(root + ".label", Map.of("link", url))
                 .clickEvent(ClickEvent.openUrl(url))
-                .hoverEvent(HoverEvent.showText(Component.text(hoverText, accentColor)));
-        result.add(Component.text(label, textColor).append(link));
-        result.add(Component.text(separator, textColor).decorate(TextDecoration.STRIKETHROUGH));
-        return List.copyOf(result);
-    }
-
-    private static String requiredString(JsonObject object, String key) {
-        if (object == null || !object.has(key) || object.get(key).isJsonNull()) {
-            throw new IllegalArgumentException("Missing messages.json value: " + key);
-        }
-
-        String value = object.get(key).getAsString();
-        if (value.isBlank()) {
-            throw new IllegalArgumentException("Blank messages.json value: " + key);
-        }
-        return value;
+                .hoverEvent(HoverEvent.showText(hover));
+        result.add(link);
+        result.add(separator);
+        return result;
     }
 
     private static void validateWebUrl(String url) {
