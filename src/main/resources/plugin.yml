@@ -151,6 +151,12 @@ permissions:
   modificationffa.gui.settings.hide-stats:
     description: Allows hiding personal stats from other players.
     default: true
+  modificationffa.gui.settings.kit-safety:
+    description: Allows toggling purchased-item protection when loading kits.
+    default: true
+  modificationffa.gui.settings.invisibility:
+    description: Allows toggling whether invisibility effects apply.
+    default: true
   modificationffa.gui.settings.executioner-token:
     description: Allows receiving kill tokens from Executioner Sword procs.
     default: true

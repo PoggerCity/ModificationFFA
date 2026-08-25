@@ -19,6 +19,7 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryCloseEvent;
 import org.bukkit.event.inventory.InventoryDragEvent;
+import org.bukkit.event.entity.EntityPotionEffectEvent;
 import org.bukkit.event.player.PlayerBucketEmptyEvent;
 import org.bukkit.event.player.PlayerBucketFillEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
@@ -30,6 +31,7 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.inventory.meta.SkullMeta;
 import org.bukkit.persistence.PersistentDataType;
+import org.bukkit.potion.PotionEffectType;
 import org.bukkit.scheduler.BukkitTask;
 import org.jetbrains.annotations.NotNull;
 
@@ -60,6 +62,8 @@ final class SettingsManager implements Listener, AutoCloseable {
     static final String PROTECTION_PERMISSION = "modificationffa.gui.settings.protection";
     static final String EXPLOSION_PERMISSION = "modificationffa.gui.settings.explosion";
     static final String HIDE_STATS_PERMISSION = "modificationffa.gui.settings.hide-stats";
+    static final String KIT_SAFETY_PERMISSION = "modificationffa.gui.settings.kit-safety";
+    static final String INVISIBILITY_PERMISSION = "modificationffa.gui.settings.invisibility";
     static final String PERSONAL_TIME_PERMISSION = "modificationffa.gui.settings.personal-time";
     static final String PERSONAL_WEATHER_PERMISSION = "modificationffa.gui.settings.personal-weather";
     static final String EXECUTIONER_TOKEN_PERMISSION = "modificationffa.gui.settings.executioner-token";
@@ -111,6 +115,7 @@ final class SettingsManager implements Listener, AutoCloseable {
                 plugin, this::animateOpenSettings, 1L, 1L);
         for (Player player : Bukkit.getOnlinePlayers()) {
             applyPersonalEnvironment(player);
+            enforceInvisibilitySetting(player);
         }
     }
 
@@ -155,6 +160,15 @@ final class SettingsManager implements Listener, AutoCloseable {
         return enabled && (online == null || online.hasPermission(HIDE_STATS_PERMISSION));
     }
 
+    boolean kitSafetyEnabled(Player player) {
+        return bool(value(player.getUniqueId()).kitSafety, true);
+    }
+
+    boolean invisibilityEnabled(Player player) {
+        return permittedAndEnabled(player, INVISIBILITY_PERMISSION,
+                value(player.getUniqueId()).invisibility, true);
+    }
+
     boolean executionerTokenEnabled(Player player) {
         return permittedAndEnabled(player, EXECUTIONER_TOKEN_PERMISSION,
                 value(player.getUniqueId()).executionerToken, false);
@@ -166,8 +180,21 @@ final class SettingsManager implements Listener, AutoCloseable {
             Player player = event.getPlayer();
             if (player.isOnline()) {
                 applyPersonalEnvironment(player);
+                enforceInvisibilitySetting(player);
             }
         });
+    }
+
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onPotionEffectChange(EntityPotionEffectEvent event) {
+        if (!(event.getEntity() instanceof Player player)
+                || event.getNewEffect() == null
+                || event.getModifiedType() != PotionEffectType.INVISIBILITY) {
+            return;
+        }
+        if (!invisibilityEnabled(player)) {
+            event.setCancelled(true);
+        }
     }
 
     @EventHandler
@@ -279,13 +306,15 @@ final class SettingsManager implements Listener, AutoCloseable {
                     () -> value.explosionShiftClick = !bool(value.explosionShiftClick, true));
             case 15 -> toggle(player, HIDE_STATS_PERMISSION,
                     () -> value.hideStats = !bool(value.hideStats, false));
+            case 16 -> toggle(player, KIT_SAFETY_PERMISSION,
+                    () -> value.kitSafety = !bool(value.kitSafety, true));
             case PREVIOUS_PAGE_SLOT, NEXT_PAGE_SLOT -> openPage(player, 2);
             case STAFF_SLOT -> showStaffComingSoon(player);
             default -> {
                 return;
             }
         }
-        if (slot >= 10 && slot <= 15) {
+        if (slot >= 10 && slot <= 16) {
             openPage(player, 1);
         }
     }
@@ -323,6 +352,15 @@ final class SettingsManager implements Listener, AutoCloseable {
             case 13 -> {
                 toggle(player, ANTI_GHOST_WATER_PERMISSION,
                         () -> value.antiGhostWater = !bool(value.antiGhostWater, true));
+                openPage(player, 2);
+            }
+            case 14 -> {
+                if (!hasSettingPermission(player, INVISIBILITY_PERMISSION)) {
+                    return;
+                }
+                value.invisibility = !bool(value.invisibility, true);
+                enforceInvisibilitySetting(player);
+                changed();
                 openPage(player, 2);
             }
             case PREVIOUS_PAGE_SLOT, NEXT_PAGE_SLOT -> openPage(player, 1);
@@ -398,11 +436,12 @@ final class SettingsManager implements Listener, AutoCloseable {
         inventory.setItem(14, toggleItem(Material.TNT, "Explosion Shift Click",
                 "Toggle shift-right-click activation for the explosion axe.",
                 bool(value.explosionShiftClick, true), EXPLOSION_PERMISSION, player));
-        inventory.setItem(15, toggleItem(Material.FEATHER, "Hide Stats",
+        inventory.setItem(15, toggleItem(Material.GLASS, "Hide Stats",
                 "Hide your stats from other players using /m stats.",
                 bool(value.hideStats, false), HIDE_STATS_PERMISSION, player));
-        inventory.setItem(16, namedItem(Material.MINECART, "Not Implemented",
-                List.of(gray("More settings will be added in future updates."))));
+        inventory.setItem(16, toggleItem(Material.SHIELD, "Kit Safety",
+                "Click here to toggle if you want to make sure you don't load a kit when you have purchased items in your inventory.",
+                bool(value.kitSafety, true), KIT_SAFETY_PERMISSION, player));
         inventory.setItem(PREVIOUS_PAGE_SLOT, navigationItem(
                 Material.WHITE_STAINED_GLASS_PANE, "Previous Page",
                 "Click here to go to the previous page."));
@@ -421,6 +460,9 @@ final class SettingsManager implements Listener, AutoCloseable {
         inventory.setItem(13, toggleItem(Material.WATER_BUCKET, "Anti-Ghost Water",
                 "Resync your inventory after using water buckets.",
                 bool(value.antiGhostWater, true), ANTI_GHOST_WATER_PERMISSION, player));
+        inventory.setItem(14, toggleItem(Material.GHAST_TEAR, "Invisibility",
+                "Click here to toggle if invisibility potions affect you.",
+                bool(value.invisibility, true), INVISIBILITY_PERMISSION, player));
         inventory.setItem(PREVIOUS_PAGE_SLOT, navigationItem(
                 Material.WHITE_STAINED_GLASS_PANE, "Previous Page",
                 "Click here to go to the previous page."));
@@ -637,6 +679,12 @@ final class SettingsManager implements Listener, AutoCloseable {
         }
     }
 
+    private void enforceInvisibilitySetting(Player player) {
+        if (!invisibilityEnabled(player)) {
+            player.removePotionEffect(PotionEffectType.INVISIBILITY);
+        }
+    }
+
     private void changed() {
         if (closed) {
             return;
@@ -786,6 +834,8 @@ final class SettingsManager implements Listener, AutoCloseable {
         private Boolean protectionShiftClick;
         private Boolean explosionShiftClick;
         private Boolean hideStats;
+        private Boolean kitSafety;
+        private Boolean invisibility;
         private Boolean executionerToken;
         private Boolean antiGhostWater;
         private String personalTime;
@@ -799,6 +849,8 @@ final class SettingsManager implements Listener, AutoCloseable {
             copy.protectionShiftClick = protectionShiftClick;
             copy.explosionShiftClick = explosionShiftClick;
             copy.hideStats = hideStats;
+            copy.kitSafety = kitSafety;
+            copy.invisibility = invisibility;
             copy.executionerToken = executionerToken;
             copy.antiGhostWater = antiGhostWater;
             copy.personalTime = personalTime;

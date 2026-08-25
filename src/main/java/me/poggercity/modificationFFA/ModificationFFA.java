@@ -70,7 +70,7 @@ public final class ModificationFFA extends JavaPlugin implements Listener {
 
         settingsManager = new SettingsManager(this);
         settingsManager.start();
-        kitManager = new KitManager(this);
+        kitManager = new KitManager(this, settingsManager);
         kitManager.start();
         binManager = new BinManager(this);
         binManager.start();

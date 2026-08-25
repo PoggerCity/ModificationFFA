@@ -21,14 +21,16 @@ final class KitManager implements AutoCloseable {
     private static final String ADMIN_PERMISSION = "modificationffa.kit.admin";
     private static final List<String> PLAYER_SUBCOMMANDS = List.of("help", "save", "load", "delete");
     private final ModificationFFA plugin;
+    private final SettingsManager settingsManager;
     private final KitDatabase database;
     private final Set<UUID> activeOperations = ConcurrentHashMap.newKeySet();
 
     private ItemStack[] mainKit;
     private boolean databaseReady;
 
-    KitManager(ModificationFFA plugin) {
+    KitManager(ModificationFFA plugin, SettingsManager settingsManager) {
         this.plugin = plugin;
+        this.settingsManager = settingsManager;
         this.database = new KitDatabase(plugin.getDataFolder().toPath().resolve("kits.db"));
     }
 
@@ -197,7 +199,7 @@ final class KitManager implements AutoCloseable {
             return;
         }
 
-        if (KitValidator.hasPurchasedMaterial(player.getInventory().getContents(), mainKit)) {
+        if (purchasedItemSafetyBlocks(player)) {
             sendPurchasedItemsMessage(player);
             return;
         }
@@ -219,7 +221,7 @@ final class KitManager implements AutoCloseable {
             }
 
             // Re-check after the asynchronous read so items obtained during it are never deleted.
-            if (KitValidator.hasPurchasedMaterial(onlinePlayer.getInventory().getContents(), mainKit)) {
+            if (purchasedItemSafetyBlocks(onlinePlayer)) {
                 sendPurchasedItemsMessage(onlinePlayer);
                 return;
             }
@@ -320,6 +322,11 @@ final class KitManager implements AutoCloseable {
     private void sendPurchasedItemsMessage(Player player) {
         player.sendMessage(MessageStyle.prefixed(
                 "Your kit has not been loaded because your inventory has purchased items in it."));
+    }
+
+    private boolean purchasedItemSafetyBlocks(Player player) {
+        return settingsManager.kitSafetyEnabled(player)
+                && KitValidator.hasPurchasedMaterial(player.getInventory().getContents(), mainKit);
     }
 
     private void sendHelp(CommandSender sender) {
