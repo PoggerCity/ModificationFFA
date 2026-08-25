@@ -1,5 +1,7 @@
 package me.poggercity.modificationFFA;
 
+import io.papermc.paper.datacomponent.DataComponentTypes;
+import io.papermc.paper.datacomponent.item.UseCooldown;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextColor;
@@ -8,13 +10,18 @@ import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
+import org.bukkit.Sound;
+import org.bukkit.attribute.Attribute;
+import org.bukkit.attribute.AttributeInstance;
 import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
+import org.bukkit.event.Event;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
+import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
@@ -27,11 +34,9 @@ import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.util.Vector;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 
 final class SwordManager implements Listener, AutoCloseable {
@@ -42,15 +47,19 @@ final class SwordManager implements Listener, AutoCloseable {
     private static final double STRIKE_CHANCE = 0.20D;
     private static final double VOID_CHANCE = 0.10D;
     private static final double EXECUTIONER_CHANCE = 0.20D;
-    private static final long DASH_COOLDOWN_MILLIS = 20_000L;
+    private static final double LIFESTEAL_CHANCE = 0.075D;
+    private static final double INHIBITOR_CHANCE = 0.02D;
+    private static final double LIFESTEAL_HEALTH = 4.0D;
+    private static final int DASH_COOLDOWN_TICKS = 20 * 20;
+    private static final int COBWEB_LOCK_TICKS = 5 * 20;
     private static final String PUNCH_BOW_ID = "punch_bow";
     private static final String PUNCH_BOW_NAME = "Punch Bow";
     private static final List<String> GIVE_TYPES = List.of(
-            "strike", "dash", "executioner", "void", PUNCH_BOW_ID);
+            "strike", "dash", "executioner", "void", "lifesteal", "inhibitor",
+            "knockback", "kb", PUNCH_BOW_ID);
 
     private final ModificationFFA plugin;
     private final NamespacedKey swordTypeKey;
-    private final Map<UUID, Long> dashCooldowns = new HashMap<>();
 
     SwordManager(ModificationFFA plugin) {
         this.plugin = plugin;
@@ -117,11 +126,38 @@ final class SwordManager implements Listener, AutoCloseable {
         return List.of();
     }
 
-    @EventHandler(priority = EventPriority.NORMAL, ignoreCancelled = true)
+    @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = true)
+    public void onLockedCobwebHit(EntityDamageByEntityEvent event) {
+        if (event.getDamager() instanceof Player attacker
+                && attacker.getInventory().getItemInMainHand().getType() == Material.COBWEB
+                && attacker.hasCooldown(Material.COBWEB)) {
+            event.setCancelled(true);
+        }
+    }
+
+    @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = true)
+    public void onLockedCobwebPlace(BlockPlaceEvent event) {
+        if (event.getItemInHand().getType() == Material.COBWEB
+                && event.getPlayer().hasCooldown(Material.COBWEB)) {
+            event.setCancelled(true);
+        }
+    }
+
+    @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = true)
+    public void onLockedCobwebUse(PlayerInteractEvent event) {
+        ItemStack item = event.getItem();
+        if (item != null && item.getType() == Material.COBWEB
+                && event.getPlayer().hasCooldown(Material.COBWEB)) {
+            event.setUseItemInHand(Event.Result.DENY);
+        }
+    }
+
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onSwordHit(EntityDamageByEntityEvent event) {
         if (!(event.getDamager() instanceof Player attacker)
                 || !(event.getEntity() instanceof LivingEntity target)
-                || !attacker.hasPermission(ABILITY_PERMISSION)) {
+                || !attacker.hasPermission(ABILITY_PERMISSION)
+                || event.getFinalDamage() <= 0.0D) {
             return;
         }
 
@@ -134,6 +170,14 @@ final class SwordManager implements Listener, AutoCloseable {
                     100,
                     1
             ));
+        } else if (type == SwordType.LIFESTEAL && target instanceof Player
+                && chance(LIFESTEAL_CHANCE)) {
+            healFromLifesteal(attacker);
+        } else if (type == SwordType.INHIBITOR && target instanceof Player victim
+                && chance(INHIBITOR_CHANCE)) {
+            victim.setCooldown(Material.COBWEB, COBWEB_LOCK_TICKS);
+            victim.getWorld().playSound(
+                    victim.getLocation(), Sound.BLOCK_CHEST_LOCKED, 1.0F, 1.0F);
         }
     }
 
@@ -173,7 +217,7 @@ final class SwordManager implements Listener, AutoCloseable {
 
     @Override
     public void close() {
-        dashCooldowns.clear();
+        // No persistent resources are owned by this manager.
     }
 
     private void activateHeldAbility(org.bukkit.command.CommandSender sender) {
@@ -214,7 +258,7 @@ final class SwordManager implements Listener, AutoCloseable {
             requestedType = args[2];
         } else {
             sender.sendMessage(MessageStyle.prefixed(
-                    "Usage: /sword give [player] <strike|dash|executioner|void|punch_bow>"));
+                    "Usage: /sword give [player] <strike|dash|executioner|void|lifesteal|inhibitor|knockback|punch_bow>"));
             return;
         }
 
@@ -226,25 +270,27 @@ final class SwordManager implements Listener, AutoCloseable {
         boolean punchBow = PUNCH_BOW_ID.equalsIgnoreCase(requestedType);
         if (type == null && !punchBow) {
             sender.sendMessage(MessageStyle.prefixed(
-                    "Unknown item. Available: strike, dash, executioner, void, punch_bow."));
+                    "Unknown item. Available: strike, dash, executioner, void, lifesteal, inhibitor, knockback, punch_bow."));
             return;
         }
 
         ItemStack reward = punchBow ? createPunchBow() : createSword(type);
-        String itemName = punchBow ? PUNCH_BOW_NAME : type.itemName;
-        TextColor itemColor = punchBow ? NamedTextColor.DARK_PURPLE : type.color;
+        Component itemName = punchBow
+                ? Component.text(PUNCH_BOW_NAME, NamedTextColor.DARK_PURPLE)
+                    .decoration(TextDecoration.ITALIC, false)
+                : type.displayName();
         Map<Integer, ItemStack> overflow = target.getInventory().addItem(reward);
         for (ItemStack item : overflow.values()) {
             target.getWorld().dropItemNaturally(target.getLocation(), item);
         }
         target.sendMessage(MessageStyle.prefix()
                 .append(Component.text("You have received the ", NamedTextColor.GRAY))
-                .append(Component.text(itemName, itemColor))
+                .append(itemName)
                 .append(Component.text("!", NamedTextColor.GRAY)));
         if (!sender.equals(target)) {
             sender.sendMessage(MessageStyle.prefix()
                     .append(Component.text("Gave ", NamedTextColor.GRAY))
-                    .append(Component.text(itemName, itemColor))
+                    .append(itemName)
                     .append(Component.text(" to ", NamedTextColor.GRAY))
                     .append(Component.text(target.getName(), NamedTextColor.GREEN))
                     .append(Component.text(".", NamedTextColor.GRAY)));
@@ -252,21 +298,26 @@ final class SwordManager implements Listener, AutoCloseable {
     }
 
     private ItemStack createSword(SwordType type) {
-        ItemStack sword = new ItemStack(Material.NETHERITE_SWORD);
+        ItemStack sword = new ItemStack(type.material);
         ItemMeta meta = sword.getItemMeta();
-        meta.displayName(Component.text(type.itemName, type.color)
-                .decoration(TextDecoration.ITALIC, false));
-        meta.addEnchant(Enchantment.SHARPNESS, 5, true);
-        meta.addEnchant(Enchantment.SWEEPING_EDGE, 3, true);
-        meta.addEnchant(Enchantment.FIRE_ASPECT, 2, true);
-        meta.setUnbreakable(true);
-        meta.addItemFlags(ItemFlag.HIDE_ENCHANTS, ItemFlag.HIDE_UNBREAKABLE);
-        meta.lore(type.lore.stream()
-                .map(line -> Component.text(line, NamedTextColor.GRAY)
-                        .decoration(TextDecoration.ITALIC, false))
-                .toList());
+        meta.displayName(type.displayName());
+        if (type == SwordType.KNOCKBACK) {
+            meta.addEnchant(Enchantment.KNOCKBACK, 2, true);
+            meta.addEnchant(Enchantment.UNBREAKING, 2, true);
+        } else {
+            meta.addEnchant(Enchantment.SHARPNESS, 5, true);
+            meta.addEnchant(Enchantment.SWEEPING_EDGE, 3, true);
+            meta.addEnchant(Enchantment.FIRE_ASPECT, 2, true);
+            meta.setUnbreakable(true);
+            meta.addItemFlags(ItemFlag.HIDE_ENCHANTS, ItemFlag.HIDE_UNBREAKABLE);
+            meta.lore(type.lore.stream()
+                    .map(line -> Component.text(line, NamedTextColor.GRAY)
+                            .decoration(TextDecoration.ITALIC, false))
+                    .toList());
+        }
         meta.getPersistentDataContainer().set(swordTypeKey, PersistentDataType.STRING, type.id);
         sword.setItemMeta(meta);
+        applyCooldownComponent(sword, type);
         return sword;
     }
 
@@ -287,14 +338,20 @@ final class SwordManager implements Listener, AutoCloseable {
     }
 
     private SwordType swordType(ItemStack item) {
-        if (item == null || item.getType() != Material.NETHERITE_SWORD || !item.hasItemMeta()) {
+        if (item == null || !item.hasItemMeta()) {
             return null;
         }
         ItemMeta meta = item.getItemMeta();
         String stored = meta.getPersistentDataContainer().get(swordTypeKey, PersistentDataType.STRING);
         SwordType tagged = SwordType.fromName(stored);
-        if (tagged != null) {
+        if (tagged != null && item.getType() == tagged.material) {
+            normalizeSwordPresentation(item, tagged);
+            applyCooldownComponent(item, tagged);
             return tagged;
+        }
+
+        if (item.getType() != Material.NETHERITE_SWORD) {
+            return null;
         }
 
         // Recognize swords already issued by the supplied ModifySwords JAR.
@@ -307,24 +364,42 @@ final class SwordManager implements Listener, AutoCloseable {
         }
         String plainName = PlainTextComponentSerializer.plainText().serialize(meta.displayName());
         for (SwordType type : SwordType.values()) {
+            if (!type.legacyCompatible) {
+                continue;
+            }
             boolean hasAbilityMarker = meta.lore().stream()
                     .map(PlainTextComponentSerializer.plainText()::serialize)
                     .anyMatch(type.abilityMarker::equals);
-            if (plainName.equals(type.itemName) && hasAbilityMarker) {
+            if (plainName.equals(type.legacyItemName) && hasAbilityMarker) {
                 meta.getPersistentDataContainer().set(
                         swordTypeKey, PersistentDataType.STRING, type.id);
+                meta.displayName(type.displayName());
                 item.setItemMeta(meta);
+                applyCooldownComponent(item, type);
                 return type;
             }
         }
         return null;
     }
 
+    private void normalizeSwordPresentation(ItemStack item, SwordType type) {
+        ItemMeta meta = item.getItemMeta();
+        Component desiredName = type.displayName();
+        boolean shouldBeUnbreakable = type != SwordType.KNOCKBACK;
+        if (desiredName.equals(meta.displayName())
+                && meta.isUnbreakable() == shouldBeUnbreakable) {
+            return;
+        }
+        meta.displayName(desiredName);
+        meta.setUnbreakable(shouldBeUnbreakable);
+        item.setItemMeta(meta);
+    }
+
     private void dash(Player player) {
-        long now = System.currentTimeMillis();
-        long readyAt = dashCooldowns.getOrDefault(player.getUniqueId(), 0L);
-        if (readyAt > now) {
-            long seconds = Math.max(1L, (readyAt - now + 999L) / 1_000L);
+        ItemStack held = player.getInventory().getItemInMainHand();
+        applyCooldownComponent(held, SwordType.DASH);
+        if (player.hasCooldown(held)) {
+            long seconds = Math.max(1L, (player.getCooldown(held) + 19L) / 20L);
             player.sendMessage(MessageStyle.prefixed(
                     "You must wait " + seconds + " seconds before using this ability again."));
             return;
@@ -332,13 +407,36 @@ final class SwordManager implements Listener, AutoCloseable {
 
         Vector direction = player.getLocation().getDirection().normalize().multiply(2.0D);
         player.setVelocity(direction);
-        UUID playerId = player.getUniqueId();
-        long expiresAt = now + DASH_COOLDOWN_MILLIS;
-        dashCooldowns.put(playerId, expiresAt);
-        Bukkit.getScheduler().runTaskLater(plugin,
-                () -> dashCooldowns.remove(playerId, expiresAt),
-                DASH_COOLDOWN_MILLIS / 50L);
+        player.setCooldown(held, DASH_COOLDOWN_TICKS);
         player.sendMessage(MessageStyle.prefixed("You have dashed through the air!"));
+    }
+
+    private void applyCooldownComponent(ItemStack item, SwordType type) {
+        if (item == null || item.getType() != type.material
+                || item.hasData(DataComponentTypes.USE_COOLDOWN)) {
+            return;
+        }
+        NamespacedKey group = new NamespacedKey(plugin, "sword_" + type.id);
+        item.setData(DataComponentTypes.USE_COOLDOWN,
+                UseCooldown.useCooldown(DASH_COOLDOWN_TICKS / 20.0F)
+                        .cooldownGroup(group));
+    }
+
+    private void healFromLifesteal(Player player) {
+        AttributeInstance maxHealthAttribute = player.getAttribute(Attribute.MAX_HEALTH);
+        double maxHealth = maxHealthAttribute == null ? 20.0D : maxHealthAttribute.getValue();
+        double newHealth = Math.min(maxHealth, player.getHealth() + LIFESTEAL_HEALTH);
+        if (newHealth <= player.getHealth()) {
+            return;
+        }
+        player.setHealth(newHealth);
+        player.sendMessage(MessageStyle.prefix()
+                .append(Component.text("❤", NamedTextColor.RED)
+                        .decoration(TextDecoration.BOLD, true)
+                        .decoration(TextDecoration.ITALIC, false))
+                .append(Component.text(" Your Lifesteal Sword restored 2 hearts!",
+                                NamedTextColor.GRAY)
+                        .decoration(TextDecoration.BOLD, false)));
     }
 
     private boolean chance(double probability) {
@@ -365,7 +463,8 @@ final class SwordManager implements Listener, AutoCloseable {
     }
 
     private enum SwordType {
-        STRIKE("strike", "⚡ Strike Sword", NamedTextColor.YELLOW,
+        STRIKE("strike", "⚡", "Strike Sword", NamedTextColor.YELLOW,
+                Material.NETHERITE_SWORD, "⚡ Strike Sword", true,
                 "A chance to strike enemies with lightning", List.of(
                 "Sharpness V",
                 "Sweeping Edge III",
@@ -373,7 +472,8 @@ final class SwordManager implements Listener, AutoCloseable {
                 "Unbreakable",
                 "A chance to strike enemies with lightning"
         )),
-        DASH("dash", "🚀 Dash Sword", NamedTextColor.GREEN,
+        DASH("dash", "🚀", "Dash Sword", NamedTextColor.GREEN,
+                Material.NETHERITE_SWORD, "🚀 Dash Sword", true,
                 "Lets you dash through the air!", List.of(
                 "Sharpness V",
                 "Sweeping Edge III",
@@ -382,7 +482,8 @@ final class SwordManager implements Listener, AutoCloseable {
                 "Lets you dash through the air!",
                 "Can be activated by shift right clicking while holding the sword"
         )),
-        EXECUTIONER("executioner", "☠ Executioner Sword", NamedTextColor.GOLD,
+        EXECUTIONER("executioner", "☠", "Executioner Sword", NamedTextColor.GOLD,
+                Material.NETHERITE_SWORD, "☠ Executioner Sword", true,
                 "A chance to drop player's heads when you kill them", List.of(
                 "Sharpness V",
                 "Sweeping Edge III",
@@ -390,28 +491,69 @@ final class SwordManager implements Listener, AutoCloseable {
                 "Unbreakable",
                 "A chance to drop player's heads when you kill them"
         )),
-        VOID("void", "🌑 Void Sword", NamedTextColor.DARK_GRAY,
+        VOID("void", "✺", "Void Sword", NamedTextColor.DARK_GRAY,
+                Material.NETHERITE_SWORD, "🌑 Void Sword", true,
                 "A chance to take enemies' vision!", List.of(
                 "Sharpness V",
                 "Sweeping Edge III",
                 "Fire Aspect II",
                 "Unbreakable",
                 "A chance to take enemies' vision!"
-        ));
+        )),
+        LIFESTEAL("lifesteal", "❤", "Lifesteal Sword", NamedTextColor.RED,
+                Material.NETHERITE_SWORD, null, false,
+                "A chance to heal when you hit someone!", List.of(
+                "Sharpness V",
+                "Sweeping Edge III",
+                "Fire Aspect II",
+                "A chance to heal when you hit someone!"
+        )),
+        INHIBITOR("inhibitor", "🔒", "Inhibitor Sword", NamedTextColor.AQUA,
+                Material.NETHERITE_SWORD, null, false,
+                "A chance to disable enemies' cobwebs!", List.of(
+                "Sharpness V",
+                "Sweeping Edge III",
+                "Fire Aspect II",
+                "A chance to disable enemies' cobwebs!"
+        )),
+        KNOCKBACK("knockback", "", "Knockback Sword", NamedTextColor.YELLOW,
+                Material.GOLDEN_SWORD, null, false, "", List.of());
 
         private final String id;
-        private final String itemName;
+        private final String emoji;
+        private final String label;
         private final TextColor color;
+        private final Material material;
+        private final String legacyItemName;
+        private final boolean legacyCompatible;
         private final String abilityMarker;
         private final List<String> lore;
 
-        SwordType(String id, String itemName, TextColor color, String abilityMarker,
+        SwordType(String id, String emoji, String label, TextColor color, Material material,
+                  String legacyItemName, boolean legacyCompatible, String abilityMarker,
                   List<String> lore) {
             this.id = id;
-            this.itemName = itemName;
+            this.emoji = emoji;
+            this.label = label;
             this.color = color;
+            this.material = material;
+            this.legacyItemName = legacyItemName;
+            this.legacyCompatible = legacyCompatible;
             this.abilityMarker = abilityMarker;
             this.lore = lore;
+        }
+
+        private Component displayName() {
+            Component name = Component.empty();
+            if (!emoji.isEmpty()) {
+                name = name.append(Component.text(emoji, color)
+                                .decoration(TextDecoration.BOLD, true)
+                                .decoration(TextDecoration.ITALIC, false))
+                        .append(Component.space());
+            }
+            return name.append(Component.text(label, color)
+                    .decoration(TextDecoration.BOLD, false)
+                    .decoration(TextDecoration.ITALIC, false));
         }
 
         private static SwordType fromName(String name) {
@@ -419,7 +561,8 @@ final class SwordManager implements Listener, AutoCloseable {
                 return null;
             }
             for (SwordType type : values()) {
-                if (type.id.equalsIgnoreCase(name)) {
+                if (type.id.equalsIgnoreCase(name)
+                        || (type == KNOCKBACK && name.equalsIgnoreCase("kb"))) {
                     return type;
                 }
             }
