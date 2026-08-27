@@ -53,7 +53,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
-/** Stores per-player interface preferences and owns the Modification Settings GUI. */
 final class SettingsManager implements Listener, AutoCloseable {
 
     static final String BROADCAST_PERMISSION = "modificationffa.gui.settings.broadcast";

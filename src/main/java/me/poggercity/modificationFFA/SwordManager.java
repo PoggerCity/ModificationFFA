@@ -4,7 +4,6 @@ import io.papermc.paper.datacomponent.DataComponentTypes;
 import io.papermc.paper.datacomponent.item.UseCooldown;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
-import net.kyori.adventure.text.format.TextColor;
 import net.kyori.adventure.text.format.TextDecoration;
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import org.bukkit.Bukkit;
@@ -67,9 +66,6 @@ final class SwordManager implements Listener, AutoCloseable {
     private static final double LIFESTEAL_CHANCE = 0.075D;
     private static final double INHIBITOR_CHANCE = 0.02D;
     private static final double LIFESTEAL_HEALTH = 4.0D;
-    private static final int DASH_COOLDOWN_TICKS = 20 * 20;
-    private static final int PROTECTION_COOLDOWN_TICKS = 60 * 20;
-    private static final int EXPLOSION_COOLDOWN_TICKS = 40 * 20;
     private static final int PROTECTION_DURATION_TICKS = 15 * 20;
     private static final int RECENT_ATTACKER_TICKS = 10 * 20;
     private static final int DAMAGE_WINDOW_TICKS = 10;
@@ -219,7 +215,7 @@ final class SwordManager implements Listener, AutoCloseable {
         if (applyProtection(victim, event)) {
             return;
         }
-        if (hasWeaponInHotbar(victim, SwordType.RESISTANCE)) {
+        if (hasWeaponInHotbar(victim, WeaponType.RESISTANCE)) {
             int attackers = recentAttackerCount(victim);
             double resistance = Math.min(1.0D, Math.max(0, attackers - 1) * 0.05D);
             if (resistance > 0.0D) {
@@ -237,19 +233,19 @@ final class SwordManager implements Listener, AutoCloseable {
             return;
         }
 
-        SwordType type = swordType(attacker.getInventory().getItemInMainHand());
-        if (type == SwordType.STRIKE && chance(STRIKE_CHANCE)) {
+        WeaponType type = swordType(attacker.getInventory().getItemInMainHand());
+        if (type == WeaponType.STRIKE && chance(STRIKE_CHANCE)) {
             target.getWorld().strikeLightning(target.getLocation());
-        } else if (type == SwordType.VOID && chance(VOID_CHANCE)) {
+        } else if (type == WeaponType.VOID && chance(VOID_CHANCE)) {
             target.addPotionEffect(new org.bukkit.potion.PotionEffect(
                     org.bukkit.potion.PotionEffectType.BLINDNESS,
                     100,
                     1
             ));
-        } else if (type == SwordType.LIFESTEAL && target instanceof Player
+        } else if (type == WeaponType.LIFESTEAL && target instanceof Player
                 && chance(LIFESTEAL_CHANCE)) {
             healFromLifesteal(attacker);
-        } else if (type == SwordType.INHIBITOR && target instanceof Player victim
+        } else if (type == WeaponType.INHIBITOR && target instanceof Player victim
                 && chance(INHIBITOR_CHANCE)) {
             victim.setCooldown(Material.COBWEB, COBWEB_LOCK_TICKS);
             victim.getWorld().playSound(
@@ -269,7 +265,7 @@ final class SwordManager implements Listener, AutoCloseable {
         UUID victimId = victim.getUniqueId();
         ItemStack weapon = attacker.getInventory().getItemInMainHand();
         if (!(event.getDamager() instanceof Player)
-                || swordType(weapon) != SwordType.EXECUTIONER) {
+                || swordType(weapon) != WeaponType.EXECUTIONER) {
             lastExecutionerHits.remove(victimId);
             return;
         }
@@ -312,17 +308,17 @@ final class SwordManager implements Listener, AutoCloseable {
         if (action != Action.RIGHT_CLICK_AIR && action != Action.RIGHT_CLICK_BLOCK) {
             return;
         }
-        SwordType type = swordType(event.getPlayer().getInventory().getItemInMainHand());
-        if (type == SwordType.PROTECTION
+        WeaponType type = swordType(event.getPlayer().getInventory().getItemInMainHand());
+        if (type == WeaponType.PROTECTION
                 && !settingsManager.protectionShiftClickEnabled(event.getPlayer())) {
             return;
         }
-        if (type == SwordType.EXPLOSION
+        if (type == WeaponType.EXPLOSION
                 && !settingsManager.explosionShiftClickEnabled(event.getPlayer())) {
             return;
         }
-        if (type == SwordType.DASH || type == SwordType.PROTECTION
-                || type == SwordType.EXPLOSION) {
+        if (type == WeaponType.DASH || type == WeaponType.PROTECTION
+                || type == WeaponType.EXPLOSION) {
             event.setUseInteractedBlock(Event.Result.DENY);
             event.setUseItemInHand(Event.Result.DENY);
             activateWeaponAbility(event.getPlayer(), type);
@@ -334,7 +330,7 @@ final class SwordManager implements Listener, AutoCloseable {
         Player player = event.getPlayer();
         if (!player.hasPermission(ABILITY_PERMISSION)
                 || excavatingPlayers.contains(player.getUniqueId())
-                || swordType(player.getInventory().getItemInMainHand()) != SwordType.EXCAVATOR
+                || swordType(player.getInventory().getItemInMainHand()) != WeaponType.EXCAVATOR
                 || !Tag.MINEABLE_PICKAXE.isTagged(event.getBlock().getType())) {
             return;
         }
@@ -434,13 +430,13 @@ final class SwordManager implements Listener, AutoCloseable {
             return;
         }
 
-        SwordType type = swordType(player.getInventory().getItemInMainHand());
+        WeaponType type = swordType(player.getInventory().getItemInMainHand());
         if (type == null) {
             player.sendMessage(MessageStyle.prefixedMessage("sword.holding-required"));
             return;
         }
-        if (type == SwordType.DASH || type == SwordType.PROTECTION
-                || type == SwordType.EXPLOSION) {
+        if (type == WeaponType.DASH || type == WeaponType.PROTECTION
+                || type == WeaponType.EXPLOSION) {
             activateWeaponAbility(player, type);
             return;
         }
@@ -469,7 +465,7 @@ final class SwordManager implements Listener, AutoCloseable {
             sender.sendMessage(MessageStyle.prefixedMessage("sword.player-offline"));
             return;
         }
-        SwordType type = SwordType.fromName(requestedType);
+        WeaponType type = WeaponType.fromName(requestedType);
         boolean punchBow = PUNCH_BOW_ID.equalsIgnoreCase(requestedType);
         if (type == null && !punchBow) {
             sender.sendMessage(MessageStyle.prefixedMessage("sword.unknown-item"));
@@ -494,23 +490,23 @@ final class SwordManager implements Listener, AutoCloseable {
         }
     }
 
-    private ItemStack createSword(SwordType type) {
+    private ItemStack createSword(WeaponType type) {
         ItemStack sword = new ItemStack(type.material);
         ItemMeta meta = sword.getItemMeta();
         meta.displayName(type.displayName());
         applyResourcePackModel(meta, type.modelId());
-        if (type == SwordType.KNOCKBACK) {
+        if (type == WeaponType.KNOCKBACK) {
             meta.addEnchant(Enchantment.KNOCKBACK, 2, true);
             meta.addEnchant(Enchantment.UNBREAKING, 2, true);
-        } else if (type == SwordType.PROTECTION || type == SwordType.RESISTANCE
-                || type == SwordType.EXPLOSION) {
+        } else if (type == WeaponType.PROTECTION || type == WeaponType.RESISTANCE
+                || type == WeaponType.EXPLOSION) {
             meta.addEnchant(Enchantment.SHARPNESS, 5, true);
             meta.addEnchant(Enchantment.EFFICIENCY, 5, true);
             meta.setUnbreakable(true);
             meta.addItemFlags(ItemFlag.HIDE_ENCHANTS);
             meta.removeItemFlags(ItemFlag.HIDE_ATTRIBUTES, ItemFlag.HIDE_UNBREAKABLE);
             meta.lore(standardLore(type));
-        } else if (type == SwordType.EXCAVATOR) {
+        } else if (type == WeaponType.EXCAVATOR) {
             meta.addEnchant(Enchantment.SILK_TOUCH, 1, true);
             meta.addEnchant(Enchantment.EFFICIENCY, 5, true);
             meta.setUnbreakable(true);
@@ -522,12 +518,12 @@ final class SwordManager implements Listener, AutoCloseable {
             meta.addEnchant(Enchantment.FIRE_ASPECT, 2, true);
             meta.setUnbreakable(true);
             meta.addItemFlags(ItemFlag.HIDE_ENCHANTS);
-            if (type == SwordType.DASH) {
+            if (type == WeaponType.DASH) {
                 meta.removeItemFlags(ItemFlag.HIDE_ATTRIBUTES, ItemFlag.HIDE_UNBREAKABLE);
             } else {
                 meta.addItemFlags(ItemFlag.HIDE_UNBREAKABLE);
             }
-            if (type == SwordType.EXECUTIONER) {
+            if (type == WeaponType.EXECUTIONER) {
                 meta.getPersistentDataContainer().set(
                         executionerKillsKey, PersistentDataType.INTEGER, 0);
                 meta.getPersistentDataContainer().set(
@@ -595,14 +591,14 @@ final class SwordManager implements Listener, AutoCloseable {
         return merged;
     }
 
-    private SwordType swordType(ItemStack item) {
+    private WeaponType swordType(ItemStack item) {
         if (item == null || !item.hasItemMeta()) {
             return null;
         }
         ItemMeta meta = item.getItemMeta();
         String stored = meta.getPersistentDataContainer().get(swordTypeKey, PersistentDataType.STRING);
-        SwordType tagged = SwordType.fromName(stored);
-        if (tagged == SwordType.EXCAVATOR && item.getType() == Material.DIAMOND_PICKAXE) {
+        WeaponType tagged = WeaponType.fromName(stored);
+        if (tagged == WeaponType.EXCAVATOR && item.getType() == Material.DIAMOND_PICKAXE) {
             item.setType(Material.NETHERITE_PICKAXE);
             meta = item.getItemMeta();
         }
@@ -624,7 +620,7 @@ final class SwordManager implements Listener, AutoCloseable {
             return null;
         }
         String plainName = PlainTextComponentSerializer.plainText().serialize(meta.displayName());
-        for (SwordType type : SwordType.values()) {
+        for (WeaponType type : WeaponType.values()) {
             if (!type.legacyCompatible) {
                 continue;
             }
@@ -644,10 +640,10 @@ final class SwordManager implements Listener, AutoCloseable {
         return null;
     }
 
-    private void normalizeSwordPresentation(ItemStack item, SwordType type) {
+    private void normalizeSwordPresentation(ItemStack item, WeaponType type) {
         ItemMeta meta = item.getItemMeta();
         Component desiredName = type.displayName();
-        boolean shouldBeUnbreakable = type != SwordType.KNOCKBACK;
+        boolean shouldBeUnbreakable = type != WeaponType.KNOCKBACK;
         boolean changed = !desiredName.equals(meta.displayName())
                 || meta.isUnbreakable() != shouldBeUnbreakable;
         if (type.revealsNativeTooltip()) {
@@ -664,7 +660,7 @@ final class SwordManager implements Listener, AutoCloseable {
         if (applyResourcePackModel(meta, type.modelId())) {
             changed = true;
         }
-        if (type == SwordType.EXECUTIONER) {
+        if (type == WeaponType.EXECUTIONER) {
             int kills = meta.getPersistentDataContainer().getOrDefault(
                     executionerKillsKey, PersistentDataType.INTEGER, 0);
             if (!meta.getPersistentDataContainer().has(
@@ -678,14 +674,14 @@ final class SwordManager implements Listener, AutoCloseable {
                 meta.lore(desiredLore);
                 changed = true;
             }
-        } else if (type != SwordType.KNOCKBACK) {
+        } else if (type != WeaponType.KNOCKBACK) {
             List<Component> desiredLore = standardLore(type);
             if (!desiredLore.equals(meta.lore())) {
                 meta.lore(desiredLore);
                 changed = true;
             }
         }
-        if (type == SwordType.EXECUTIONER
+        if (type == WeaponType.EXECUTIONER
                 && !meta.getPersistentDataContainer().has(
                         executionerIdKey, PersistentDataType.STRING)) {
             meta.getPersistentDataContainer().set(
@@ -731,7 +727,7 @@ final class SwordManager implements Listener, AutoCloseable {
 
     private ItemStack findExecutionerWeapon(Player player, String weaponId) {
         for (ItemStack item : player.getInventory().getContents()) {
-            if (item != null && swordType(item) == SwordType.EXECUTIONER
+            if (item != null && swordType(item) == WeaponType.EXECUTIONER
                     && weaponId.equals(executionerId(item))) {
                 return item;
             }
@@ -739,8 +735,8 @@ final class SwordManager implements Listener, AutoCloseable {
         return null;
     }
 
-    private List<Component> standardLore(SwordType type) {
-        if (type == SwordType.DASH) {
+    private List<Component> standardLore(WeaponType type) {
+        if (type == WeaponType.DASH) {
             return List.of(
                     grayLore("Sharpness V"),
                     grayLore("Sweeping Edge III"),
@@ -754,7 +750,7 @@ final class SwordManager implements Listener, AutoCloseable {
                             .decoration(TextDecoration.ITALIC, false)
             );
         }
-        if (type == SwordType.PROTECTION) {
+        if (type == WeaponType.PROTECTION) {
             return List.of(
                     grayLore("Sharpness V"),
                     grayLore("Efficiency V"),
@@ -772,7 +768,7 @@ final class SwordManager implements Listener, AutoCloseable {
                             .decoration(TextDecoration.ITALIC, false)
             );
         }
-        if (type == SwordType.RESISTANCE) {
+        if (type == WeaponType.RESISTANCE) {
             return List.of(
                     grayLore("Sharpness V"),
                     grayLore("Efficiency V"),
@@ -785,7 +781,7 @@ final class SwordManager implements Listener, AutoCloseable {
                     grayLore("Axe must be in the hotbar to work.")
             );
         }
-        if (type == SwordType.EXPLOSION) {
+        if (type == WeaponType.EXPLOSION) {
             return List.of(
                     grayLore("Sharpness V"),
                     grayLore("Efficiency V"),
@@ -827,7 +823,7 @@ final class SwordManager implements Listener, AutoCloseable {
                 .decoration(TextDecoration.ITALIC, false);
     }
 
-    private void activateWeaponAbility(Player player, SwordType type) {
+    private void activateWeaponAbility(Player player, WeaponType type) {
         switch (type) {
             case DASH -> dash(player);
             case PROTECTION -> activateProtection(player);
@@ -838,7 +834,7 @@ final class SwordManager implements Listener, AutoCloseable {
 
     private void dash(Player player) {
         ItemStack held = player.getInventory().getItemInMainHand();
-        if (!beginWeaponCooldown(player, held, SwordType.DASH)) {
+        if (!beginWeaponCooldown(player, held, WeaponType.DASH)) {
             return;
         }
 
@@ -851,7 +847,7 @@ final class SwordManager implements Listener, AutoCloseable {
 
     private void activateProtection(Player player) {
         ItemStack held = player.getInventory().getItemInMainHand();
-        if (!beginWeaponCooldown(player, held, SwordType.PROTECTION)) {
+        if (!beginWeaponCooldown(player, held, WeaponType.PROTECTION)) {
             return;
         }
         int protectedHits = Math.max(1, recentAttackerCount(player));
@@ -867,7 +863,7 @@ final class SwordManager implements Listener, AutoCloseable {
 
     private void activateExplosion(Player player) {
         ItemStack held = player.getInventory().getItemInMainHand();
-        if (!beginWeaponCooldown(player, held, SwordType.EXPLOSION)) {
+        if (!beginWeaponCooldown(player, held, WeaponType.EXPLOSION)) {
             return;
         }
 
@@ -926,10 +922,10 @@ final class SwordManager implements Listener, AutoCloseable {
         }
     }
 
-    private boolean beginWeaponCooldown(Player player, ItemStack held, SwordType type) {
+    private boolean beginWeaponCooldown(Player player, ItemStack held, WeaponType type) {
         applyCooldownComponent(held, type);
         if (player.hasCooldown(held)) {
-            if (type != SwordType.EXPLOSION) {
+            if (type != WeaponType.EXPLOSION) {
                 long seconds = Math.max(1L, (player.getCooldown(held) + 19L) / 20L);
                 player.sendMessage(MessageStyle.prefixedMessage(
                         "sword.cooldown", Map.of("seconds", seconds)));
@@ -940,7 +936,7 @@ final class SwordManager implements Listener, AutoCloseable {
         return true;
     }
 
-    private void applyCooldownComponent(ItemStack item, SwordType type) {
+    private void applyCooldownComponent(ItemStack item, WeaponType type) {
         int cooldownTicks = type.cooldownTicks();
         if (item == null || item.getType() != type.material || cooldownTicks <= 0) {
             return;
@@ -991,7 +987,7 @@ final class SwordManager implements Listener, AutoCloseable {
         return attackers.size();
     }
 
-    private boolean hasWeaponInHotbar(Player player, SwordType type) {
+    private boolean hasWeaponInHotbar(Player player, WeaponType type) {
         for (int slot = 0; slot < 9; slot++) {
             if (swordType(player.getInventory().getItem(slot)) == type) {
                 return true;
@@ -1028,7 +1024,7 @@ final class SwordManager implements Listener, AutoCloseable {
             Player player = Bukkit.getPlayer(playerId);
             if (player == null || !player.isOnline()
                     || swordType(player.getInventory().getItemInMainHand())
-                    != SwordType.EXCAVATOR) {
+                    != WeaponType.EXCAVATOR) {
                 return;
             }
             for (int xOffset = -1; xOffset <= 1; xOffset++) {
@@ -1057,7 +1053,7 @@ final class SwordManager implements Listener, AutoCloseable {
                         }
                         if (player.getGameMode() == GameMode.SPECTATOR
                                 || swordType(player.getInventory().getItemInMainHand())
-                                != SwordType.EXCAVATOR) {
+                                != WeaponType.EXCAVATOR) {
                             return;
                         }
                         player.breakBlock(block);
@@ -1112,188 +1108,4 @@ final class SwordManager implements Listener, AutoCloseable {
     private record ExplosionKnockback(UUID sourceId, Vector velocity) {
     }
 
-    private enum SwordType {
-        STRIKE("strike", "⚡", "Strike Sword", NamedTextColor.YELLOW,
-                Material.NETHERITE_SWORD, "⚡ Strike Sword", true,
-                "A chance to strike enemies with lightning", List.of(
-                "Sharpness V",
-                "Sweeping Edge III",
-                "Fire Aspect II",
-                "Unbreakable",
-                "A chance to strike enemies with lightning"
-        )),
-        DASH("dash", "🚀", "Dash Sword", NamedTextColor.GREEN,
-                Material.NETHERITE_SWORD, "🚀 Dash Sword", true,
-                "Lets you dash through the air!", List.of(
-                "Sharpness V",
-                "Sweeping Edge III",
-                "Fire Aspect II",
-                "Lets you dash through the air!",
-                "",
-                "Can be activated by shift right clicking or by",
-                "doing /sword ability while holding the sword."
-        )),
-        EXECUTIONER("executioner", "☠", "Executioner Sword", NamedTextColor.GOLD,
-                Material.NETHERITE_SWORD, "☠ Executioner Sword", true,
-                "A chance to drop player's heads when you kill them", List.of(
-                "Sharpness V",
-                "Sweeping Edge III",
-                "Fire Aspect II",
-                "Unbreakable",
-                "A chance to drop player's heads when you kill them"
-        )),
-        VOID("void", "✺", "Void Sword", NamedTextColor.DARK_GRAY,
-                Material.NETHERITE_SWORD, "🌑 Void Sword", true,
-                "A chance to take enemies' vision!", List.of(
-                "Sharpness V",
-                "Sweeping Edge III",
-                "Fire Aspect II",
-                "Unbreakable",
-                "A chance to take enemies vision!"
-        )),
-        LIFESTEAL("lifesteal", "❤", "Lifesteal Sword", NamedTextColor.RED,
-                Material.NETHERITE_SWORD, null, false,
-                "A chance to heal when you hit someone!", List.of(
-                "Sharpness V",
-                "Sweeping Edge III",
-                "Fire Aspect II",
-                "A chance to heal when you hit someone!"
-        )),
-        INHIBITOR("inhibitor", "🔒", "Inhibitor Sword", NamedTextColor.AQUA,
-                Material.NETHERITE_SWORD, null, false,
-                "A chance to disable enemies cobwebs!", List.of(
-                "Sharpness V",
-                "Sweeping Edge III",
-                "Fire Aspect II",
-                "A chance to disable enemies cobwebs!"
-        )),
-        KNOCKBACK("knockback", "", "Knockback Sword", NamedTextColor.YELLOW,
-                Material.GOLDEN_SWORD, null, false, "", List.of()),
-        PROTECTION("protection", "🛡", "Axe of Protection", TextColor.color(0x07E824),
-                Material.NETHERITE_AXE, null, false, "", List.of(
-                "Sharpness V",
-                "Efficiency V",
-                "Protects you against a certain amount of",
-                "hits, scaling by the amount recent attackers",
-                "or for 15 seconds.",
-                "",
-                "Can be activated shift right clicking or by",
-                "doing /sword ability while holding the axe."
-        )),
-        RESISTANCE("resistance", "⛓", "Axe of Resistance", NamedTextColor.BLUE,
-                Material.NETHERITE_AXE, null, false, "", List.of(
-                "Sharpness V",
-                "Efficiency V",
-                "Gain damage reduction per additional attacker in",
-                "the last 10 seconds.",
-                "",
-                "Axe must be in the hotbar to work."
-        )),
-        EXPLOSION("explosion", "💥", "Axe of Explosion", NamedTextColor.DARK_RED,
-                Material.NETHERITE_AXE, null, false, "", List.of(
-                "Sharpness V",
-                "Efficiency V",
-                "Knocks nearby players away and removes",
-                "nearby cobwebs, stone, and obsidian.",
-                "",
-                "Can be activated shift right clicking or by",
-                "doing /sword ability while holding the axe."
-        )),
-        EXCAVATOR("excavator", "", "Excavator Pickaxe", TextColor.color(0x007AC7),
-                Material.NETHERITE_PICKAXE, null, false, "", List.of(
-                "Silk Touch",
-                "Efficiency V",
-                "Mines in a 3x3x3 block area!"
-        ));
-
-        private final String id;
-        private final String emoji;
-        private final String label;
-        private final TextColor color;
-        private final Material material;
-        private final String legacyItemName;
-        private final boolean legacyCompatible;
-        private final String abilityMarker;
-        private final List<String> lore;
-
-        SwordType(String id, String emoji, String label, TextColor color, Material material,
-                  String legacyItemName, boolean legacyCompatible, String abilityMarker,
-                  List<String> lore) {
-            this.id = id;
-            this.emoji = emoji;
-            this.label = label;
-            this.color = color;
-            this.material = material;
-            this.legacyItemName = legacyItemName;
-            this.legacyCompatible = legacyCompatible;
-            this.abilityMarker = abilityMarker;
-            this.lore = lore;
-        }
-
-        private Component displayName() {
-            Component name = Component.empty();
-            if (!emoji.isEmpty()) {
-                name = name.append(Component.text(emoji, color)
-                                .decoration(TextDecoration.BOLD, true)
-                                .decoration(TextDecoration.ITALIC, false))
-                        .append(Component.space());
-            }
-            return name.append(Component.text(label, color)
-                    .decoration(TextDecoration.BOLD, false)
-                    .decoration(TextDecoration.ITALIC, false));
-        }
-
-        private boolean revealsNativeTooltip() {
-            return this == DASH || this == PROTECTION || this == RESISTANCE || this == EXPLOSION;
-        }
-
-        private int cooldownTicks() {
-            return switch (this) {
-                case DASH -> DASH_COOLDOWN_TICKS;
-                case PROTECTION -> PROTECTION_COOLDOWN_TICKS;
-                case EXPLOSION -> EXPLOSION_COOLDOWN_TICKS;
-                default -> 0;
-            };
-        }
-
-        private String modelId() {
-            return switch (this) {
-                case STRIKE -> "strike_sword";
-                case DASH -> "dash_sword";
-                case EXECUTIONER -> "executioner_sword";
-                case VOID -> "void_sword";
-                case LIFESTEAL -> "lifesteal_sword";
-                case INHIBITOR -> "inhibitor_sword";
-                case KNOCKBACK -> "knockback_sword";
-                case PROTECTION -> "protection_axe";
-                case RESISTANCE -> "resistance_axe";
-                case EXPLOSION -> "explosion_axe";
-                case EXCAVATOR -> "excavator_pickaxe";
-            };
-        }
-
-        private static SwordType fromName(String name) {
-            if (name == null) {
-                return null;
-            }
-            String normalized = name.toLowerCase(Locale.ROOT);
-            SwordType alias = switch (normalized) {
-                case "kb" -> KNOCKBACK;
-                case "protection_axe", "axe_of_protection" -> PROTECTION;
-                case "resistance_axe", "axe_of_resistance" -> RESISTANCE;
-                case "explosion_axe", "axe_of_explosion" -> EXPLOSION;
-                default -> null;
-            };
-            if (alias != null) {
-                return alias;
-            }
-            for (SwordType type : values()) {
-                if (type.id.equals(normalized)) {
-                    return type;
-                }
-            }
-            return null;
-        }
-
-    }
 }

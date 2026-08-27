@@ -65,7 +65,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
-/** Handles authenticated tokens, resource nodes, and the Executioner trader. */
 final class TokenManager implements Listener, AutoCloseable {
 
     private static final String ADMIN_PERMISSION = "modificationffa.tokens.admin";
@@ -107,7 +106,6 @@ final class TokenManager implements Listener, AutoCloseable {
         this.executionerFiller = createFiller();
     }
 
-    /** Loads persisted state and starts shared schedulers. Listener registration is owned by the plugin. */
     void start() {
         loadState();
         animationTask = Bukkit.getScheduler().runTaskTimer(plugin, this::animateExecutioners, 1L, 1L);
